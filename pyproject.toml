@@ -1,0 +1,84 @@
+# Copyright 2026 Commonwealth Fusion Systems (CFS), all rights reserved.
+# This entire source code file represents the sole intellectual property of CFS.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cfs-nxlib"
+# NOTE: Version is dual-sourced. Needs to be updated in src/nxlib/__init__.py as well!
+version = "0.5.0"
+description = "Reusable Python functions for the NXOpen Python API."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Blair Frandeen", email="bfrandeen@cfs.energy" },
+]
+license = "Apache-2.0"
+license-files = ["LICENSE.md"]
+classifiers = [
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Multimedia :: Graphics :: 3D Modeling",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Testing :: Unit",
+]
+
+dependencies = [
+    "python-dotenv>=1",
+]
+
+[project.urls]
+Homepage = "https://github.com/cfs-energy/nxlib"
+# TODO (SW-14420): Add URL for documentation
+Repository = "https://github.com/cfs-energy/nxlib"
+Issues = "https://github.com/cfs-energy/nxlib/issues"
+Changelog = "https://github.com/cfs-energy/nxlib/blob/main/CHANGELOG.md"
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"nxlib.utility" = [".site-env"]
+
+[dependency-groups]
+dev = [
+    "pdoc==15.0.4",
+    "pyright==1.1.403",
+    "pytest==8.4.1",
+    "ruff==0.13.3",
+]
+
+[project.scripts]
+nxlib = "nxlib.utility:main.main"
+nxtest = "nxlib.nxtest:main.main"
+
+[tool.pytest.ini_options]
+pythonpath = [ "src" ]
+
+[tool.ruff.lint]
+select = [
+  # isort
+  "I", "E", "F",
+]
+ignore = ["E501"]
+
+[tool.pyright]
+include = ["src"]
+exclude = ["tools"]
+reportAttributeAccessIssue = false
