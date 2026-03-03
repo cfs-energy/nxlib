@@ -26,8 +26,24 @@ jobs:
       - name: Install nxlib and dev dependencies
         run: uv sync --dev
 
-      - name: Generate markdown docs
-        run: uv run python scripts/generate_docs.py docs_build --format markdown
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      - name: Generate HTML docs
+        run: uv run python scripts/generate_docs.py docs_build
+
+      - name: Convert HTML to Markdown
+        run: |
+          # pdoc 15 only outputs HTML; convert to Markdown for the wiki (see pdoc3/pdoc#257)
+          mkdir -p docs_md
+          find docs_build -name '*.html' -not -name 'index.html' | while read -r f; do
+            rel="${f#docs_build/}"
+            out="docs_md/${rel%.html}.md"
+            mkdir -p "$(dirname "$out")"
+            pandoc "$f" --from html --to gfm -o "$out"
+          done
+          # Fix internal links: .html -> .md (GitHub Wiki expects no extension or .md)
+          find docs_md -name '*.md' -exec sed -i 's/\.html"/"/g; s/\.html#/#/g' {} \;
 
       - name: Publish to wiki
         env:
@@ -43,7 +59,7 @@ jobs:
           find wiki_repo -name '*.md' ! -name '_Sidebar.md' ! -name '_Footer.md' -delete
 
           # Copy freshly generated markdown into the wiki repo
-          cp -r docs_build/* wiki_repo/
+          cp -r docs_md/* wiki_repo/
 
           # Use the top-level nxlib page as the wiki Home page
           if [ -f wiki_repo/nxlib.md ]; then
