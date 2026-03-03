@@ -37,13 +37,14 @@ However, nxlib can still be used as a dependency for projects that use a Python 
 
 # Installation & Setup
 ## Installation
-Clone the repository, and install it from the local source
+Add `cfs-nxlib` to your project with uv:
 ```shell
-git clone https://github.com/cfs-energy/nxlib.git
-cd your_project
-uv add ../nxlib
+uv add cfs-nxlib
 ```
-nxlib will be available as `cfs-nxlib` on PyPi in the near future.
+or with pip:
+```shell
+pip install cfs-nxlib
+```
 
 ## Setting up your environment variables
 NX and Teamcenter licensing and authentication rely on having several environment variables
