@@ -44,6 +44,8 @@ jobs:
           done
           # Fix internal links: .html -> .md (GitHub Wiki expects no extension or .md)
           find docs_md -name '*.md' -exec sed -i 's/\.html"/"/g; s/\.html#/#/g' {} \;
+          # Strip pdoc/Pygments line numbers from code blocks (e.g. "   1 def foo()" -> " def foo()"; use single \s to keep indent)
+          find docs_md -name '*.md' -exec perl -i -pe 'if (/^```/) { $in = !$in } elsif ($in) { s/^\s*\d+\s// }' {} \;
 
       - name: Publish to wiki
         env:
@@ -58,15 +60,23 @@ jobs:
           # Remove previously generated docs so deleted modules don't linger
           find wiki_repo -name '*.md' ! -name '_Sidebar.md' ! -name '_Footer.md' -delete
 
-          # Copy freshly generated markdown into the wiki repo
-          cp -r docs_md/* wiki_repo/
+          # GitHub Wiki does not support path-based links (e.g. nxlib/nxopen/uf).
+          # Copy with flattened names so pages are nxlib, nxlib-geometry, nxlib-nxopen-uf, etc.
+          find docs_md -name '*.md' | while read -r f; do
+            rel="${f#docs_md/}"
+            flat="${rel//\//-}"
+            cp "$f" "wiki_repo/$flat"
+          done
+
+          # Rewrite internal links: ](path/with/slashes) -> ](path-with-slashes)
+          find wiki_repo -name '*.md' -exec perl -i -pe 's/\](([^)]+)\)/"](" . ($1 =~ s|\/|-|gr) . ")"/ge' {} \;
 
           # Use the top-level nxlib page as the wiki Home page
           if [ -f wiki_repo/nxlib.md ]; then
             cp wiki_repo/nxlib.md wiki_repo/Home.md
           fi
 
-          # Build a sidebar with links to every page
+          # Build a sidebar with links to every page (flat names)
           {
             echo "### nxlib docs"
             echo ""
@@ -76,8 +86,7 @@ jobs:
               | sort | while read -r f; do
               rel="${f#wiki_repo/}"
               page="${rel%.md}"
-              name="${page##*/}"
-              echo "- [${name}](${page})"
+              echo "- [${page}](${page})"
             done
           } > wiki_repo/_Sidebar.md
 
