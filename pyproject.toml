@@ -59,6 +59,7 @@ where = ["src"]
 [dependency-groups]
 dev = [
     "pdoc==15.0.4",
+    "pydoc-markdown>=4.0",
     "pyright==1.1.403",
     "pytest==8.4.1",
     "ruff==0.13.3",

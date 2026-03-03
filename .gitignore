@@ -15,6 +15,9 @@
 # mech_data_tools specific 
 typings/
 
+# generated markdown docs (scripts/generate_md_docs.py)
+docs_md/
+
 # python
 *.pyc
 __pycache__

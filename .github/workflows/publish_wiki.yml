@@ -6,7 +6,7 @@ on:
       - "main"
     paths:
       - "src/nxlib/**"
-      - "scripts/generate_docs.py"
+      - "scripts/generate_md_docs.py"
   workflow_dispatch:
   pull_request:
 
@@ -26,26 +26,8 @@ jobs:
       - name: Install nxlib and dev dependencies
         run: uv sync --dev
 
-      - name: Install pandoc
-        run: sudo apt-get update && sudo apt-get install -y pandoc
-
-      - name: Generate HTML docs
-        run: uv run python scripts/generate_docs.py docs_build
-
-      - name: Convert HTML to Markdown
-        run: |
-          # pdoc 15 only outputs HTML; convert to Markdown for the wiki (see pdoc3/pdoc#257)
-          mkdir -p docs_md
-          find docs_build -name '*.html' -not -name 'index.html' | while read -r f; do
-            rel="${f#docs_build/}"
-            out="docs_md/${rel%.html}.md"
-            mkdir -p "$(dirname "$out")"
-            pandoc "$f" --from html --to gfm -o "$out"
-          done
-          # Fix internal links: .html -> .md (GitHub Wiki expects no extension or .md)
-          find docs_md -name '*.md' -exec sed -i 's/\.html"/"/g; s/\.html#/#/g' {} \;
-          # Strip pdoc/Pygments line numbers from code blocks (e.g. "   1 def foo()" -> " def foo()"; use single \s to keep indent)
-          find docs_md -name '*.md' -exec perl -i -pe 'if (/^```/) { $in = !$in } elsif ($in) { s/^\s*\d+\s// }' {} \;
+      - name: Generate Markdown docs
+        run: uv run python scripts/generate_md_docs.py docs_md
 
       - name: Publish to wiki
         env:
@@ -53,48 +35,28 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.wiki.git" wiki_repo
 
-          wiki_url="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.wiki.git"
-          git clone "${wiki_url}" wiki_repo
+          find wiki_repo -mindepth 1 ! -path 'wiki_repo/.git' ! -path 'wiki_repo/.git/*' -delete
 
-          # Remove previously generated docs so deleted modules don't linger
-          find wiki_repo -name '*.md' ! -name '_Sidebar.md' ! -name '_Footer.md' -delete
-
-          # GitHub Wiki does not support path-based links (e.g. nxlib/nxopen/uf).
-          # Copy with flattened names so pages are nxlib, nxlib-geometry, nxlib-nxopen-uf, etc.
-          find docs_md -name '*.md' | while read -r f; do
-            rel="${f#docs_md/}"
-            flat="${rel//\//-}"
+          # Copy with flat names (wiki doesn't support path links), rewrite ](a/b/c) -> ](a-b-c)
+          : > wiki_repo/.pages
+          find docs_md -name '*.md' | sort | while read -r f; do
+            flat="${f#docs_md/}"; flat="${flat//\//-}"
             cp "$f" "wiki_repo/$flat"
+            perl -i -pe 's/\](([^)]+)\)/"](" . ($1 =~ s|\/|-|gr) . ")"/ge' "wiki_repo/$flat"
+            echo "${flat%.md}" >> wiki_repo/.pages
           done
 
-          # Rewrite internal links: ](path/with/slashes) -> ](path-with-slashes)
-          find wiki_repo -name '*.md' -exec perl -i -pe 's/\](([^)]+)\)/"](" . ($1 =~ s|\/|-|gr) . ")"/ge' {} \;
-
-          # Use the top-level nxlib page as the wiki Home page
-          if [ -f wiki_repo/nxlib.md ]; then
-            cp wiki_repo/nxlib.md wiki_repo/Home.md
-          fi
-
-          # Build a sidebar with links to every page (flat names)
+          [ -f wiki_repo/nxlib.md ] && cp wiki_repo/nxlib.md wiki_repo/Home.md
           {
             echo "### nxlib docs"
             echo ""
             echo "- [Home](Home)"
-            find wiki_repo -name '*.md' -not -name 'Home.md' \
-              -not -name '_Sidebar.md' -not -name '_Footer.md' \
-              | sort | while read -r f; do
-              rel="${f#wiki_repo/}"
-              page="${rel%.md}"
-              echo "- [${page}](${page})"
-            done
+            sed 's/^\(.*\)$/- [\1](\1)/' wiki_repo/.pages
           } > wiki_repo/_Sidebar.md
+          rm -f wiki_repo/.pages
 
           cd wiki_repo
-          git add --all
-          if git diff --cached --quiet; then
-            echo "No documentation changes to publish."
-          else
-            git commit -m "Update wiki docs from ${GITHUB_SHA::8}"
-            git push
-          fi
+          git add -A
+          git diff --cached --quiet || { git commit -m "Update wiki docs from ${GITHUB_SHA::8}"; git push; }
