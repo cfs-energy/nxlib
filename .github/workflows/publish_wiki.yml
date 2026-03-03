@@ -1,0 +1,75 @@
+name: publish wiki docs
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "src/nxlib/**"
+      - "scripts/generate_docs.py"
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-wiki:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6
+
+      - name: Install nxlib and dev dependencies
+        run: uv sync --dev
+
+      - name: Generate markdown docs
+        run: uv run python scripts/generate_docs.py docs_build --format markdown
+
+      - name: Publish to wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          wiki_url="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.wiki.git"
+          git clone "${wiki_url}" wiki_repo
+
+          # Remove previously generated docs so deleted modules don't linger
+          find wiki_repo -name '*.md' ! -name '_Sidebar.md' ! -name '_Footer.md' -delete
+
+          # Copy freshly generated markdown into the wiki repo
+          cp -r docs_build/* wiki_repo/
+
+          # Use the top-level nxlib page as the wiki Home page
+          if [ -f wiki_repo/nxlib.md ]; then
+            cp wiki_repo/nxlib.md wiki_repo/Home.md
+          fi
+
+          # Build a sidebar with links to every page
+          {
+            echo "### nxlib docs"
+            echo ""
+            echo "- [Home](Home)"
+            find wiki_repo -name '*.md' -not -name 'Home.md' \
+              -not -name '_Sidebar.md' -not -name '_Footer.md' \
+              | sort | while read -r f; do
+              rel="${f#wiki_repo/}"
+              page="${rel%.md}"
+              name="${page##*/}"
+              echo "- [${name}](${page})"
+            done
+          } > wiki_repo/_Sidebar.md
+
+          cd wiki_repo
+          git add --all
+          if git diff --cached --quiet; then
+            echo "No documentation changes to publish."
+          else
+            git commit -m "Update wiki docs from ${GITHUB_SHA::8}"
+            git push
+          fi

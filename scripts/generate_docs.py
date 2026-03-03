@@ -67,6 +67,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "build_dir", type=Path, help="Output directory for documentation build."
     )
+    parser.add_argument(
+        "--format",
+        choices=["html", "markdown"],
+        default="html",
+        help="Output format (default: html).",
+    )
     args = parser.parse_args()
     # Replace the import function with the mock function above. This allows
     # a workaround when pdoc tries to import NXOpen.
@@ -82,4 +88,4 @@ if __name__ == "__main__":
     pdoc.render.configure(docformat="numpy")  # pyright: ignore[reportPrivateImportUsage]
 
     # Build the documentation
-    doc = pdoc.pdoc("nxlib", output_directory=args.build_dir)
+    doc = pdoc.pdoc("nxlib", output_directory=args.build_dir, format=args.format)
