@@ -44,7 +44,7 @@ jobs:
           find docs_md -name '*.md' | sort | while read -r f; do
             flat="${f#docs_md/}"; flat="${flat//\//-}"
             cp "$f" "wiki_repo/$flat"
-            perl -i -pe 's/\](([^)]+)\)/"](" . ($1 =~ s|\/|-|gr) . ")"/ge' "wiki_repo/$flat"
+            perl -i -pe 's/\]\(([^)]+)\)/"](" . ($1 =~ s|\/|-|gr) . ")"/ge' "wiki_repo/$flat"
             echo "${flat%.md}" >> wiki_repo/.pages
           done
 
