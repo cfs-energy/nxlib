@@ -44,7 +44,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/cfs-energy/nxlib"
-# TODO (SW-14420): Add URL for documentation
+Documentation = "https://cfs-energy.github.io/nxlib/"
 Repository = "https://github.com/cfs-energy/nxlib"
 Issues = "https://github.com/cfs-energy/nxlib/issues"
 Changelog = "https://github.com/cfs-energy/nxlib/blob/main/CHANGELOG.md"
