@@ -22,6 +22,7 @@ Nxlib is a library and toolkit for enabling workflows that utilize the [NXOpen P
 
 Simply put, nxlib enables automated data extraction from CAD, and much more.
 
+This README and the API documentation are available on [GitHub Pages](https://cfs-energy.github.io/nxlib).
 
 You can learn the basics of using nxlib by working through the [example repository](example/).
 
