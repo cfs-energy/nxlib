@@ -16,6 +16,8 @@
 to and from their corresponding NXOpen geometry objects.
 """
 
+from __future__ import annotations
+
 import NXOpen  # pyright: ignore[reportMissingModuleSource]
 
 from nxlib import geometry
@@ -61,6 +63,7 @@ class NxGeometryMixin:
 
         maker_functions = {
             NXOpen.Arc: cls._make_arc,
+            NXOpen.CartesianCoordinateSystem: cls._make_csys,
             NXOpen.Ellipse: cls._make_ellipse,
             NXOpen.Line: cls._make_line,
             NXOpen.Matrix3x3: cls._make_mat3x3,
@@ -81,6 +84,7 @@ class NxGeometryMixin:
         self,
         part: NXOpen.Part | None = None,
         update_option: UpdateOption = UpdateOption.Mixed,  # pyright: ignore[reportArgumentType]
+        is_temporary: bool = False,
     ) -> NXOpenGeometry:
         """Convert ``geometry.Geometry`` to their associated ``NXOpen`` objects.
 
@@ -91,14 +95,24 @@ class NxGeometryMixin:
             Objects which inherit from ``NXOpen.SmartObject`` can only be created in
             the context of a work part.
         update_option
-            When to update the geometry for smart objects. Default ``Mixed``. Ignored for
-            primitives such as points and vectors.
+            When to update the geometry for smart objects. Default ``Mixed``. Ignored
+            for primitives such as points and vectors.
+        is_temporary
+            Whether ``NXOpen.CartesianCoordinateSystem``s should be temporary, meaning
+            they are not displayed or saved with the part file. Default ``False``.
+
+        Returns
+        -------
+        ``NXOpen`` object corresponding to this ``geometry.Geometry`` object.
 
         """
         # Check if the part parameter is required
         if issubclass(getattr(NXOpen, self.__class__.__name__), NXOpen.SmartObject):
             if part is None:
-                msg = f"Part parameter required to instantiate NXOpen.{self.__class__.__name__}."
+                msg = (
+                    "Part parameter required to instantiate "
+                    f"NXOpen.{self.__class__.__name__}."
+                )
                 raise ValueError(msg)
             if update_option == NXOpen.SmartObject.UpdateOption.DontUpdate:
                 msg = (
@@ -112,6 +126,12 @@ class NxGeometryMixin:
                         self.origin.to_nx(),
                         self.normal.to_nx(),
                         update_option,  # pyright: ignore[reportArgumentType]
+                    )
+                case geometry.CartesianCoordinateSystem():
+                    return part.CoordinateSystems.CreateCoordinateSystem(
+                        self.origin.to_nx(),
+                        self.orientation.to_nx(),
+                        is_temporary,
                     )
                 case geometry.Arc():
                     return part.Curves.CreateArc(
@@ -168,6 +188,15 @@ class NxGeometryMixin:
             end_angle=arc.EndAngle,
             center=cls.from_nx(arc.CenterPoint),
             matrix=cls.from_nx(arc.Matrix.Element),
+        )
+
+    @classmethod
+    def _make_csys(
+        cls, csys: NXOpen.CartesianCoordinateSystem, target_cls: type
+    ) -> "geometry.CartesianCoordinateSystem":
+        return target_cls(
+            origin=cls.from_nx(csys.Origin),
+            orientation=cls.from_nx(csys.Orientation.Element),
         )
 
     @classmethod

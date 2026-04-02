@@ -19,12 +19,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cfs-nxlib"
 # NOTE: Version is dual-sourced. Needs to be updated in src/nxlib/__init__.py as well!
-version = "0.5.0"
+version = "0.6.0"
 description = "Reusable Python functions for the NXOpen Python API."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
     {name = "Blair Frandeen", email="bfrandeen@cfs.energy" },
+    {name = "Peter Kaloyannis", email="pkaloyannis@cfs.energy" },
 ]
 license = "Apache-2.0"
 license-files = ["LICENSE.md"]

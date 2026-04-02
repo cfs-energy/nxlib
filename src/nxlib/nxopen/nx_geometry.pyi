@@ -28,6 +28,11 @@ class NxGeometryMixin:
     def from_nx(cls, nx_geometry: NXOpen.Arc) -> "geometry.Arc": ...
     @overload
     @classmethod
+    def from_nx(
+        cls, nx_geometry: NXOpen.CartesianCoordinateSystem
+    ) -> "geometry.CartesianCoordinateSystem": ...
+    @overload
+    @classmethod
     def from_nx(cls, nx_geometry: NXOpen.Ellipse) -> "geometry.Ellipse": ...
     @overload
     @classmethod
@@ -53,56 +58,52 @@ class NxGeometryMixin:
     @classmethod
     def from_nx(cls, nx_geometry: NXOpen.Vector3d) -> "geometry.Vector3d": ...
     @overload
-    def to_nx(
-        self: "geometry.Arc",
-        part: NXOpen.Part | None = None,
-        update_option: UpdateOption = UpdateOption.Mixed,  # pyright: ignore[reportArgumentType]
-    ) -> NXOpen.Arc: ...
+    def to_nx(self: "geometry.Arc", part: NXOpen.Part) -> NXOpen.Arc:
+        """Convert to ``NXOpen.Arc``.\n
+        :param part: ``NXOpen.Part`` in which to create the Arc."""
     @overload
     def to_nx(
-        self: "geometry.Ellipse",
-        part: NXOpen.Part | None = None,
-        update_option: UpdateOption = UpdateOption.Mixed,  # pyright: ignore[reportArgumentType]
-    ) -> NXOpen.Ellipse: ...
+        self: "geometry.CartesianCoordinateSystem",
+        part: NXOpen.Part,
+        is_temporary: bool = False,
+    ) -> NXOpen.CartesianCoordinateSystem:
+        """Convert to ``NXOpen.CartesianCoordinateSystem``.\n
+        :param part: ``NXOpen.Part`` in which to create the CartesianCoordinateSystem.
+        :param is_temporary: Coordinate system is not displayed or saved with the part
+         file. Default ``False``."""
     @overload
-    def to_nx(
-        self: "geometry.Line",
-        part: NXOpen.Part | None = None,
-        update_option: UpdateOption = UpdateOption.Mixed,  # pyright: ignore[reportArgumentType]
-    ) -> NXOpen.Line: ...
+    def to_nx(self: "geometry.Ellipse", part: NXOpen.Part) -> NXOpen.Ellipse:
+        """Convert to ``NXOpen.Ellipse``.\n
+        :param part: ``NXOpen.Part`` in which to create the Ellipse."""
     @overload
-    def to_nx(
-        self: "geometry.Matrix3x3",
-        part: NXOpen.Part | None = None,
-        update_option: UpdateOption = UpdateOption.Mixed,  # pyright: ignore[reportArgumentType]
-    ) -> NXOpen.Matrix3x3: ...
+    def to_nx(self: "geometry.Line", part: NXOpen.Part) -> NXOpen.Line:
+        """Convert to ``NXOpen.Line``.\n
+        :param part: ``NXOpen.Part`` in which to create the Line."""
     @overload
-    def to_nx(
-        self: "geometry.Point3d",
-        part: NXOpen.Part | None = None,
-        update_option: UpdateOption = UpdateOption.Mixed,  # pyright: ignore[reportArgumentType]
-    ) -> NXOpen.Point3d: ...
+    def to_nx(self: "geometry.Matrix3x3") -> NXOpen.Matrix3x3:
+        """Convert to ``NXOpen.Matrix3x3``."""
     @overload
-    def to_nx(
-        self: "geometry.Point4d",
-        part: NXOpen.Part | None = None,
-        update_option: UpdateOption = UpdateOption.Mixed,  # pyright: ignore[reportArgumentType]
-    ) -> NXOpen.Point4d: ...
+    def to_nx(self: "geometry.Point3d") -> NXOpen.Point3d:
+        """Convert to ``NXOpen.Point3d``."""
+    @overload
+    def to_nx(self: "geometry.Point4d") -> NXOpen.Point4d:
+        """Convert to ``NXOpen.Point4d``."""
     @overload
     def to_nx(
         self: "geometry.Plane",
-        part: NXOpen.Part | None = None,
+        part: NXOpen.Part,
         update_option: UpdateOption = UpdateOption.Mixed,  # pyright: ignore[reportArgumentType]
-    ) -> NXOpen.Plane: ...
+    ) -> NXOpen.Plane:
+        """Convert to ``NXOpen.Plane``.\n
+        :param part: ``NXOpen.Part`` in which to create the Plane.
+        :param update_option: Update geometry for smart objects. Default ``Mixed``."""
     @overload
     def to_nx(
         self: "geometry.Spline",
-        part: NXOpen.Part | None = None,
+        part: NXOpen.Part,
         update_option: UpdateOption = UpdateOption.Mixed,  # pyright: ignore[reportArgumentType]
-    ) -> NXOpen.Spline: ...
+    ) -> NXOpen.Spline:
+        """Convert to ``NXOpen.Spline``. Not Implemented."""
     @overload
-    def to_nx(
-        self: "geometry.Vector3d",
-        part: NXOpen.Part | None = None,
-        update_option: UpdateOption = UpdateOption.Mixed,  # pyright: ignore[reportArgumentType]
-    ) -> NXOpen.Vector3d: ...
+    def to_nx(self: "geometry.Vector3d") -> NXOpen.Vector3d:
+        """Convert to ``NXOpen.Vector3d``."""

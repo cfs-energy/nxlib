@@ -96,7 +96,7 @@ In your Python code, you can run:
 ```python
 from nxlib import run_journal
 
-run_journal("path/to/journal.py", ["journal", "arguments"])
+run_journal("path/to/journal.py", "journal", "arguments")
 ```
 
 ## Running from the command line
@@ -104,7 +104,7 @@ nxlib has a handy command line utility for executing journals. This utility exec
 
 You can run an existing journal:
 ```shell
-uv run nxlib run my_journal.py
+uv run nxlib run my_journal.py <journal> <arguments>
 ```
 Or you can just run arbitrary Python code through NX:
 ```shell

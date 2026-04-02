@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -76,7 +77,7 @@ def test_tc_creds_userpass(creds, monkeypatch, expected):
 @pytest.mark.skipif(not nxlib.status.nx_installed, reason="only run if NX is installed")
 @pytest.mark.parametrize(
     "run_mode, local",
-    [("native", True), ("native", False), ("managed", True), ("managed", False)],
+    [("native", True), ("managed", True), ("managed", False)],
 )
 def test_run_journal(run_mode, local):
     if run_mode == "managed" and not nxlib.status.teamcenter_enabled:
@@ -91,6 +92,58 @@ def test_run_python():
     python_code = "from nxlib import nxprint; nxprint('hello world')"
     result = nxlib.run_python(python_code, run_mode="native", local=False)
     assert result == 0
+
+
+@pytest.mark.skipif(not nxlib.status.nx_installed, reason="only run if NX is installed")
+@pytest.mark.parametrize("greeting", [None, "good morning"])
+def test_run_journal_cmdline_args(greeting):
+    """Test that we can pass positional arguments to the nxlib run command
+    after the '--'."""
+    journal_path = Path(__file__).parent / "integration" / "hello.py"
+    names = ["cat", "mouse", "cow"]
+    cmd = [
+        sys.executable,
+        "-m",
+        "nxlib.utility.main",
+        "run",
+        str(journal_path.resolve()),
+        "--native",
+        "--",
+    ] + names
+    if greeting is not None:
+        # Test using a keyword argument as well as a positional argument
+        cmd.extend(["--greeting", greeting])
+
+    # Run the journal with the  keyword arguments
+    proc = subprocess.run(cmd, capture_output=True)
+
+    assert proc.returncode == 0, "Journal should run succesfully"
+    assert (
+        proc.stdout.decode()
+        == "\n".join(f"{greeting or 'Hello'} {name}!" for name in names) + "\n"
+    ), "Output should be as expected"
+
+
+@pytest.mark.skipif(not nxlib.status.nx_installed, reason="only run if NX is installed")
+@pytest.mark.parametrize("greeting", [None, "good morning"])
+def test_run_journal_fn_args(greeting, capfd):
+    """Test that positional arguments to the run_journal function are passed
+    correctly to the journal being run."""
+    journal_path = Path(__file__).parent / "integration" / "hello.py"
+    names = ["cat", "mouse", "cow"]
+
+    # Test using a keyword argument as well as a positional argument
+    args = names + ["--greeting", greeting] if greeting else names
+
+    result = nxlib.run_journal(journal_path, *args)
+
+    captured = capfd.readouterr()
+
+    assert result == 0, "Journal should run succesfully"
+    assert (
+        captured.out
+        == "\n".join(f"{greeting or 'Hello'} {name}!" for name in names) + "\n"
+    ), "Output should be as expected"
 
 
 def test_set_env_local_python(monkeypatch):

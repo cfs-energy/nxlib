@@ -96,7 +96,7 @@ def main():
     exit(
         nxlib.run_journal(
             Path(__file__).resolve().parent / "_nx_run_test.py",
-            sys.argv[1:],
+            *sys.argv[1:],
             run_mode=args.run_mode,
             local=args.local,
             auth_method=args.auth,
