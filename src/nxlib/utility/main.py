@@ -106,11 +106,6 @@ def main() -> None:
         type=str,
         help="Execute arbitrary Python code with the NX interpreter.",
     )
-    run_parser.add_argument(
-        "--args",
-        nargs="*",
-        help="Arguments to pass to the journal",
-    )
 
     add_runmode_group(run_parser)
 
@@ -124,13 +119,14 @@ def main() -> None:
         "--auth",
         type=TcAuthMethod,
         default="auto",
-        help="Authentication method for Teamcenter. Choose from 'auto' (default), 'sso' or 'password'.",
+        help="Authentication method for Teamcenter. Choose from 'auto' (default), 'sso'"
+        " or 'password'.",
     )
     run_parser.add_argument(
         "-v", "--verbose", action="store_true", help="Show detailed nxlib status."
     )
 
-    args = parser.parse_args()
+    args, remainder = parser.parse_known_args()
     if args.version:
         print("nxlib version %s" % nxlib.__version__)
         return
@@ -147,17 +143,21 @@ def main() -> None:
                 print("ERROR: %s" % err)
                 exit(2)
         case "run":
-            run_journal_kwargs = dict(
-                journal_args=args.args,
-                run_mode=args.run_mode,
-                auth_method=args.auth,
-                local=args.local,
-                verbose=args.verbose,
-            )
+            remainder = [arg for arg in remainder if arg != "--"]
+            run_journal_kwargs = {
+                "run_mode": args.run_mode,
+                "auth_method": args.auth,
+                "local": args.local,
+                "verbose": args.verbose,
+            }
             if args.code:
-                exit(nxlib.run_python(args.code, **run_journal_kwargs))
+                exit(nxlib.run_python(args.code, *remainder, **run_journal_kwargs))
             else:
-                exit(nxlib.run_journal(args.journal_path, **run_journal_kwargs))
+                exit(
+                    nxlib.run_journal(
+                        args.journal_path, *remainder, **run_journal_kwargs
+                    )
+                )
         case "status":
             if args.verbose:
                 print(nxlib.status)
@@ -184,7 +184,8 @@ def main() -> None:
                 exit(1)
             except PermissionError:
                 print(
-                    "Error with file permissions, try manually removing your typings directory first."
+                    "Error with file permissions, try manually removing your typings"
+                    " directory first."
                 )
                 exit(2)
             except nxlib.NxNotInstalledError as err:

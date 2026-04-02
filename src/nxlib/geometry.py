@@ -149,6 +149,14 @@ class Vector3d(Geometry, CoordinateSequence):
 
 
 @dataclass
+class CartesianCoordinateSystem(Geometry):
+    """Model for NXOpen.CartesianCoordinateSystem."""
+
+    origin: Point3d
+    orientation: Matrix3x3
+
+
+@dataclass
 class Plane(Geometry):
     """Model for NXOpen.Plane."""
 

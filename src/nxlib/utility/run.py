@@ -31,7 +31,7 @@ from nxlib.utility.common import RunMode
 
 def run_journal(
     journal_path: str | os.PathLike,
-    journal_args: Optional[list[str]] = None,
+    *journal_args: str,
     run_mode: RunMode = "native",
     auth_method: TcAuthMethod = TcAuthMethod.AUTO,
     local: bool = False,
@@ -120,6 +120,7 @@ def run_journal(
 
 def run_python(
     src: str,
+    *journal_args: str,
     dir: Optional[str | os.PathLike] = None,
     append_path: bool = True,
     threaded: bool = True,
@@ -132,6 +133,8 @@ def run_python(
     ----------
     src
         Python code to run
+    journal_args
+        Arguments to pass to the Python journal
     dir
         Working directory from which to call the python code.
     append_path
@@ -157,7 +160,7 @@ def run_python(
             journal.write("sys.path.append('%s')\n" % module_path)
         journal.write(src)
     try:
-        return run_journal(tmp_journal.name, **kwargs)
+        return run_journal(tmp_journal.name, *journal_args, **kwargs)
     finally:
         tmp_journal.close()
         if not keep_script:

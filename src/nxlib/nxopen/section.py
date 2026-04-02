@@ -24,7 +24,7 @@ def create_section_curves(
     plane: NXOpen.Plane,
     section_name: str = "NEW_SECTION",
     delete_section: bool = True,
-) -> list[tuple[str, list[NXOpen.Curve]]]:
+) -> list[tuple[str, list[NXOpen.Arc | NXOpen.Ellipse | NXOpen.Line | NXOpen.Spline]]]:
     """Create a copy of section curves for all visible components
     in an assembly.
 

@@ -18,16 +18,19 @@ journals can be run with nxlib. Print nxlib status to the
 terminal or listing window.
 """
 
-import sys
+import argparse
 
 import nxlib
 from nxlib import nxprint
 
-nxprint(nxlib.status)
+parser = argparse.ArgumentParser("smoke test")
+parser.add_argument("names", nargs="*", help="Who to greet")
+parser.add_argument("--greeting", type=str, help="How to greet", default="Hello")
+args = parser.parse_args()
 
-args = sys.argv[1:]
-if args:
-    for a in args:
-        nxprint(f"Hello {a}!")
+if args.names:
+    for name in args.names:
+        nxprint(f"{args.greeting} {name}!")
 else:
+    nxprint(nxlib.status)
     nxprint("Hello World!")

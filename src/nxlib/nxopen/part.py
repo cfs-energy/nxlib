@@ -101,35 +101,29 @@ def open_part(
     if isinstance(part_path, os.PathLike):
         part_path = str(part_path.resolve())
 
-    try:
-        nx_session.Parts.SetNonmasterSeedPartData(part_path)
-    except NXOpen.NXException as err:
-        # We need to read the error message to see if we're failing
-        # because the object wasn't found, or if a different exception was raised.
-        if "object does not exist" in err.args[0]:
-            raise FileNotFoundError("Object not found: %s" % part_path)
-        # If some other failure, raise it
-        raise
+    # Start by checking if the part is already open in the session
+    work_part = _part_open_in_session(part_path, nx_session)
 
-    try:
-        # Check to see if the part is already opened in the session.
-        # If it isn't, NX will throw an NXException
-        part1 = nx_session.Parts.FindObject(part_path)
-    except NXOpen.NXException:
-        # If the part wasn't found, open it.
-        nx_session.Parts.OpenActiveDisplay(
-            part_path,
-            NXOpen.DisplayPartOption.AllowAdditional,
-        )
-    else:
+    if work_part:
+        # If already open, set the part as the actively displayed / work part.
         nx_session.Parts.SetActiveDisplay(
-            part1,
+            work_part,
             NXOpen.DisplayPartOption.AllowAdditional,
             NXOpen.PartDisplayPartWorkPartOption.UseLast,
         )
-
-    work_part = nx_session.Parts.Work
-    nx_session.CleanUpFacetedFacesAndEdges()
+    else:
+        # See if the part exists
+        try:
+            work_part, _status = nx_session.Parts.OpenActiveDisplay(
+                part_path, NXOpen.DisplayPartOption.AllowAdditional
+            )
+        except NXOpen.NXException as err:
+            # We need to read the error message to see if we're failing
+            # because the object wasn't found, or if a different exception was raised.
+            if "object does not exist" in err.args[0]:
+                raise FileNotFoundError("Object not found: %s" % part_path)
+            # If some other failure, raise it
+            raise
 
     # RootComponent will be None if part is not an assembly. Otherwise we want to
     # open it fully
@@ -145,3 +139,31 @@ def open_part(
         work_part.LoadWaveLinkFeatureParents()
 
     return work_part
+
+
+def _part_open_in_session(
+    part_path: str, nx_session: NXOpen.Session
+) -> NXOpen.Part | None:
+    """Check if a part is open in the current NX session, and return it if it's open.
+
+    Parameters
+    ----------
+    part_path
+        Path or DB_PART_NO for the part to check for.
+    nx_session
+        The current NX session.
+
+    Returns
+    -------
+    The part if it was already open, otherwise ``None``.
+
+    """
+    try:
+        # Check to see if the part is already opened in the session.
+        # If it isn't, NX will throw an NXException
+        part = nx_session.Parts.FindObject(part_path)
+    except NXOpen.NXException as err:
+        if "No object found with this name" in err.args[0]:
+            return None
+        raise
+    return part

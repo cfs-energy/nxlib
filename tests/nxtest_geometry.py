@@ -276,6 +276,16 @@ class TestRoundtripGeometry(unittest.TestCase):
             {"origin": rand_coords(3), "normal": rand_norm_vec()},
         )
 
+    def test_csys_roundtrip(self):
+        self._test_geometry_roundtrip(
+            geometry.CartesianCoordinateSystem,
+            NXOpen.CartesianCoordinateSystem,
+            {
+                "origin": rand_coords(3),
+                "orientation": rand_orthonormal_mat3(),
+            },
+        )
+
     def test_arc_roundtrip(self):
         self._test_geometry_roundtrip(
             geometry.Arc,

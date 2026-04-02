@@ -60,6 +60,28 @@ def test_coordseq_roundtrip(geo_cls, seq_len):
         assert model_deserialized[i] == c, "Deserialized object should match exactly."
 
 
+def test_csys_roundtrip():
+    """Test JSON roundtrip for CartesianCoordinateSystem."""
+    model = geometry.CartesianCoordinateSystem(
+        origin=geometry.Point3d(*rand_coords(3)),
+        orientation=geometry.Matrix3x3(*rand_orthonormal_mat3()),
+    )
+
+    model_serialized = model.to_json()
+    model_default_json = json.loads(model_serialized)
+    assert model_default_json["_type"] == "CartesianCoordinateSystem", (
+        "The serialized model should have a _type key that indicates "
+        "the source class, which can be used to deserialize to the correct subclass."
+    )
+    model_deserialized = geometry.Geometry.from_json(model_serialized)
+    assert isinstance(model_deserialized, geometry.CartesianCoordinateSystem), (
+        "Should deserialize into the correct class."
+    )
+
+    assert model_deserialized.origin == model.origin
+    assert model_deserialized.orientation == model.orientation
+
+
 def test_plane_roundtrip():
     """Test JSON roundtrip for Plane."""
     model = geometry.Plane(

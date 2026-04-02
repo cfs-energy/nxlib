@@ -12,6 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# nx: threaded
+# NOTE: The above comment (nx: threaded) needs to be at the opening of this
+# journal in order to allow threaded libraries (e.g. numpy) to be run by
+# users of nxlib. See below for details:
+# https://docs.sw.siemens.com/en-US/doc/209349590/PL20220512394070742.nxopen_prog_guide/xid1124929
+# TODO (SW-14839): Make threaded test execution a command line option
+
 """NXOpen journal to run test cases with the NX interpreter."""
 
 import sys

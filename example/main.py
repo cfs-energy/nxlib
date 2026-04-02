@@ -59,7 +59,8 @@ def decode_points(
     # a failure during journal execution. It's best practice to check for it.
     exit_code = run_journal(
         "nx_get_points.py",
-        journal_args=[str(Path(part_file).resolve()), str(points_file)],
+        str(Path(part_file).resolve()),
+        str(points_file),
     )
     if exit_code == 0:
         print("\nJournal execution completed successfully.\n")

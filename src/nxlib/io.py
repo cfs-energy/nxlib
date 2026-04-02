@@ -14,6 +14,8 @@
 # limitations under the License.
 """Encoders & decoders for ``nxlib.geometry.Geometry`` models."""
 
+from __future__ import annotations
+
 import json
 from dataclasses import astuple, fields, is_dataclass
 from typing import Any
@@ -55,9 +57,25 @@ class NxDecoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, object_hook=self._decode_nx)
 
-    def _decode_nx(self, obj: dict[str, Any]) -> Any:
-        # If the _type key is available, try to instantiate an NxGeometry object.
-        # Otherwise use the default JSONDecoder
+    def _decode_nx(self, obj: dict[str, Any]) -> "geometry.Geometry" | Any:
+        """Decode an ``nxlib.geometry.Geometry`` object.
+
+        Parameters
+        ----------
+        obj
+            The object to decode
+
+        Returns
+        -------
+        The appropriate ``nxlib.geometry.Geometry`` subclass as indicated by the
+        "_type" key in the input dictionary. Returns the object unmodified if the
+        "_type" key was not found.
+
+        Raises
+        ------
+        ``TypeError`` if the "_type" key was present and did not correspond to a
+        sublcass of ``nxlib.geometry.Geometry``.
+        """
         obj_type = obj.get("_type")
         if obj_type:
             # See if "_type" corresponds to a known subclass
