@@ -12,17 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# mech_data_tools specific 
-typings/
+from nxlib.nxopen.part import part_context
 
-# python
-*.pyc
-__pycache__
-dist
-build/
-*/*venv*
-*.coverage
-*coverage.xml
-*.egg-info
-*.lock
-*.ipynb
+r = "@DB/2254049/A"
+
+with part_context(r) as p:
+    pass

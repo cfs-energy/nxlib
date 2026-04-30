@@ -146,6 +146,25 @@ def test_run_journal_fn_args(greeting, capfd):
     ), "Output should be as expected"
 
 
+@pytest.mark.skipif(
+    not (nxlib.status.nx_installed and nxlib.status.teamcenter_enabled),
+    reason="only run if NX is installed and teamcenter is available",
+)
+def test_run_journal_close_part(capfd):
+    """Test running a journal that opens a Teamcenter part, and show that the
+    error message "In non-interactive mode.  Export directory ... is deleted."
+    no longer appears."""
+    journal_path = Path(__file__).parent / "integration" / "open_part.py"
+    result = nxlib.run_journal(journal_path, run_mode="managed")
+
+    captured = capfd.readouterr()
+
+    assert result == 0, "Journal should run succesfully"
+    last_line = captured.out.splitlines().pop()
+    assert not last_line.startswith("In non-interactive mode.  Export directory")
+    assert not last_line.endswith("is deleted.")
+
+
 def test_set_env_local_python(monkeypatch):
     monkeypatch.delenv("UGII_PYTHON_LIBRARY_DIR", raising=False)
     monkeypatch.delenv("UGII_PYTHONPATH", raising=False)

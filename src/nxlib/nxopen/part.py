@@ -1,12 +1,12 @@
 # Copyright 2026 Commonwealth Fusion Systems (CFS), all rights reserved.
 # This entire source code file represents the sole intellectual property of CFS.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,16 +15,25 @@
 """Functions for working with assemblies."""
 
 import os
+import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
+from typing import Literal
 
 import NXOpen  # type: ignore
 import NXOpen.Assemblies  # type: ignore
 
 
+class ModifiedComponentError(Exception):
+    """Attempt to close a part that has been modified."""
+
+
 @contextmanager
 def part_context(
-    part_path: str | os.PathLike, close_when_done: bool = True, **kwargs
+    part_path: str | os.PathLike,
+    on_exit: Literal["close-part", "close-tree", "undisplay"] = "close-part",
+    if_modified: Literal["discard", "error"] = "discard",
+    **kwargs,
 ) -> Generator[NXOpen.Part, None, None]:
     """
     Open a part in a context manager, and optionally close it when done,
@@ -36,27 +45,72 @@ def part_context(
         If running in managed (Teamcenter) mode, this is the part
         number in the form of "@DB/1235467/A". If running natively,
         this is a path to the .prt file.
+    on_exit:
+        Action to take when the context manager exits. ``"close-part"`` (default) will
+        close only the part that was opened. ``"close-tree"`` will close the part and
+        any of its components which were not already opened. ``"undisplay"`` will leave
+        the part open, and set the sessions work & display part back to whatever it was
+        when this context manager was entered.
+    if_modified:
+        Action to take if part(s) are to be closed on context manager exit.
+        ``"discard"`` (default) will close without saving changes.  ``"error"`` will
+        raise a ``ModifiedComponentError``.
     close_when_done:
-        Close the part once the context manager exits, and return to the
-        part that was displayed when the context manager was entered.
+        (Deprecated) Close the part once the context manager exits, and return to the
+        part that was displayed when the context manager was entered. Equivalent
+        to ``on_exit="close-part", if_modified="discard"``
     kwargs:
         Keyword arguments to ``nxlib.nxopen.part.open_part``
 
     Yields
     ------
     The ``NXOpen.Part`` that was returned from ``nxlib.nxopen.part.open_part``.
+
+    Raises
+    ------
+    ``ModifiedComponentError`` if attempting to close a modified component and
+    ``if_modified="error"``.
     """
+    # TODO: Remove backwards compatibility for previous APIs
+    if "close_when_done" in kwargs:
+        msg = (
+            "close_when_done is deprecated. To use this behavior in the future,"
+            ' please use on_exit="close-part" and if_modified="discard".'
+        )
+        warnings.warn(msg, DeprecationWarning)
+        if kwargs.get("close_when_done"):
+            on_exit, if_modified = "close-part", "discard"
+            kwargs.pop("close_when_done")  # Don't pass this to open_part
     nx_session = NXOpen.Session.GetSession()  # type: NXOpen.Session
-    original_part = nx_session.Parts.Display if close_when_done else None
+    original_part = nx_session.Parts.Display
     part = open_part(part_path, **kwargs)
     try:
         yield part
     finally:
-        # Go back to the original part when the context manager exits
-        if original_part is not None and original_part is not part:
-            # Close the part that we opened
+        if on_exit == "close-part" or on_exit == "close-tree":
+            close_whole_tree = (
+                NXOpen.BasePart.CloseWholeTree.TrueValue
+                if on_exit == "close-tree"
+                else NXOpen.BasePart.CloseWholeTree.FalseValue
+            )
+            close_modified = (
+                NXOpen.BasePart.CloseModified.CloseModified
+                if if_modified == "discard"
+                else NXOpen.BasePart.CloseModified.DontCloseModified
+            )
+            if part.IsModified and if_modified == "error":
+                msg = f"Part '{part.Name}' is modified!"
+                raise ModifiedComponentError(msg)
+            if not part.IsModified or (part.IsModified and if_modified == "discard"):
+                part.Close(
+                    close_whole_tree,  # pyright: ignore[reportArgumentType]
+                    close_modified,  # pyright: ignore[reportArgumentType]
+                    None,  # pyright: ignore[reportArgumentType]
+                )
+        elif on_exit == "undisplay":
             part.Undisplay()
-
+        # Go back to the original part when the context manager exits
+        if original_part is not None:
             # Set the original part as the displayed part
             part = NXOpen.Part.Null
             nx_session.Parts.SetActiveDisplay(
@@ -104,6 +158,13 @@ def open_part(
     # Start by checking if the part is already open in the session
     work_part = _part_open_in_session(part_path, nx_session)
 
+    # Set the load options depending on `open_assembly`
+    nx_session.Parts.LoadOptions.ComponentsToLoad = (
+        NXOpen.LoadOptions.LoadComponents.All
+        if open_assembly
+        else NXOpen.LoadOptions.LoadComponents.NotSet
+    )
+
     if work_part:
         # If already open, set the part as the actively displayed / work part.
         nx_session.Parts.SetActiveDisplay(
@@ -124,16 +185,6 @@ def open_part(
                 raise FileNotFoundError("Object not found: %s" % part_path)
             # If some other failure, raise it
             raise
-
-    # RootComponent will be None if part is not an assembly. Otherwise we want to
-    # open it fully
-    if work_part.ComponentAssembly.RootComponent is not None and open_assembly:
-        components_to_open = [work_part.ComponentAssembly.RootComponent]
-
-        work_part.ComponentAssembly.OpenComponents(
-            NXOpen.Assemblies.ComponentAssembly.OpenOption.WholeAssembly,  # type: ignore
-            components_to_open,
-        )
 
     if load_wavelink_parents:
         work_part.LoadWaveLinkFeatureParents()

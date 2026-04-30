@@ -25,6 +25,14 @@ from tests.fixtures.common import native
 class TestGetAttributes(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        """Open an assembly that has the following structure:
+        - attr_assy.prt
+          - model1.prt
+          - model2.prt
+            - model1.prt
+        Run the get_assembly_attributes function and assign those attributes
+        to this test class, so that we can make assertions about them.
+        """
         cls.assy_path = Path("tests") / "data" / "attr_assy.prt"
         cls.csvfile = Path(".") / "attrtest.csv"
         with part_context(cls.assy_path) as part:
