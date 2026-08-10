@@ -22,6 +22,21 @@ def component_is_reference(component: NXOpen.Assemblies.Component) -> bool:
 
     A component is reference only if it has the attribute called REFERENCE_COMPONENT.
     """
+    # Make sure the parent is loaded so that we can check whether the component is
+    # a reference component
+    parent = component.Parent
+    if parent is None:
+        # Component cannot be reference if it does not have a parent component
+        return False
+    parent_part = parent.Prototype.OwningPart if parent.Prototype else None
+
+    if parent_part is None or not parent_part.IsFullyLoaded:
+        work_part = NXOpen.Session.GetSession().Parts.Work
+        work_part.ComponentAssembly.OpenComponents(
+            NXOpen.Assemblies.ComponentAssembly.OpenOption.ComponentOnly,
+            [parent],
+        )
+
     try:
         # This will return an empty string if it exists.
         _isref = component.GetInstanceStringUserAttribute("REFERENCE_COMPONENT", -1)

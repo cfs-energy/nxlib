@@ -24,5 +24,4 @@ build/
 *.coverage
 *coverage.xml
 *.egg-info
-*.lock
 *.ipynb
