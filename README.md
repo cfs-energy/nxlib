@@ -203,3 +203,5 @@ You can get type hints and auto-complete for the `NXOpen` package in VSCode by r
 nxlib typings
 ```
 from your development root. This will copy the contents of `%UGII_BASE_DIR%\UGOPEN\pythonStubs` to your `typings/` folder. In VSCode, ensure that your `python.analysis.stubPath` points to the newly created folder for your workspace.
+
+Note that the `NXOpen` type hints are not 100% comprehensive or correct, and may raise errors with your type checker that need to be ignored.

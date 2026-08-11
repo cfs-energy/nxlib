@@ -15,12 +15,18 @@
 import NXOpen  # pyright: ignore[reportMissingModuleSource]
 import NXOpen.Assemblies  # pyright: ignore[reportMissingModuleSource]
 
+import nxlib
+
 
 def component_is_reference(component: NXOpen.Assemblies.Component) -> bool:
     """
-    Determine whether a component is 'Reference-Only'.
+    Determine whether an assembly component is 'Reference-Only'.
 
-    A component is reference only if it has the attribute called REFERENCE_COMPONENT.
+    A component is reference only if it has the attribute called REFERENCE_COMPONENT
+    in the context of its parent assembly.
+
+    NOTE: the parent assembly will be opened, if not already open, when this
+    function is called.
     """
     # Make sure the parent is loaded so that we can check whether the component is
     # a reference component
@@ -33,7 +39,7 @@ def component_is_reference(component: NXOpen.Assemblies.Component) -> bool:
     if parent_part is None or not parent_part.IsFullyLoaded:
         work_part = NXOpen.Session.GetSession().Parts.Work
         work_part.ComponentAssembly.OpenComponents(
-            NXOpen.Assemblies.ComponentAssembly.OpenOption.ComponentOnly,
+            NXOpen.Assemblies.ComponentAssembly.OpenOption.ComponentOnly,  # pyright: ignore[reportArgumentType]
             [parent],
         )
 
@@ -50,3 +56,67 @@ def component_is_reference(component: NXOpen.Assemblies.Component) -> bool:
         # it is not reference only.
         return False
     return True
+
+
+def find_components_in_assembly_tree(
+    parent: NXOpen.Assemblies.Component,
+    part_number: str,
+    *,
+    skip_ref_comps: bool = True,
+) -> list[NXOpen.Assemblies.Component]:
+    """Recursively find components within an assembly tree.
+
+    Parameters
+    ----------
+    parent
+        Component to search within.
+    part_number
+        Part number of component to search for if using managed (Teamcenter) NX.
+        Filename stem if using NX native.
+    skip_ref_comps
+        Skip components marked as "Reference-only" as well as their entire
+        sub-trees. Default ``True``. If ``True``, the entire tree will be opened
+        in order to determine which components are reference. Set to ``False`` to
+        avoid the side-effect of opening components.
+
+    Returns
+    -------
+    List of components with matching ``part_number``.
+
+    """
+    result = []
+
+    # Cache the filesystem mode to avoid expensive call within the recursion
+    nx_filesystem_mode = nxlib.status.nx_filesystem_mode
+
+    def _search(parent: NXOpen.Assemblies.Component) -> None:
+        """Inner function to avoid needing result in the main function signature."""
+        for child in parent.GetChildren():
+            if skip_ref_comps and component_is_reference(child):
+                continue
+            # NOTE: In managed (Teamcenter) mode, the DB_PART_NO attribute denotes the
+            # part number. This attribute is not always present in native NX, so instead
+            # the filename stem is matched.
+            if nx_filesystem_mode == nxlib.NxFilesystemMode.MANAGED:
+                try:
+                    child_pn = child.GetStringAttribute("DB_PART_NO")
+                except NXOpen.NXException as err:
+                    if "The attribute not found." in err.args[0]:
+                        print(f"ERROR: {child} has no 'DB_PART_NO' attribute. Skipping")
+                        continue
+                    raise
+            else:
+                prototype = child.Prototype
+                if not prototype:
+                    print(f"ERROR: {child} has no prototype. Skipping")
+                    continue
+                child_pn = prototype.Name
+
+            if child_pn == part_number:
+                result.append(child)
+            else:
+                _search(child)
+
+    _search(parent)
+
+    return result
