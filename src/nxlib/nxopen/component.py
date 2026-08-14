@@ -60,8 +60,7 @@ def component_is_reference(component: NXOpen.Assemblies.Component) -> bool:
 
 def find_components_in_assembly_tree(
     parent: NXOpen.Assemblies.Component,
-    part_number: str,
-    *,
+    *part_numbers: str,
     skip_ref_comps: bool = True,
 ) -> list[NXOpen.Assemblies.Component]:
     """Recursively find components within an assembly tree.
@@ -70,9 +69,9 @@ def find_components_in_assembly_tree(
     ----------
     parent
         Component to search within.
-    part_number
-        Part number of component to search for if using managed (Teamcenter) NX.
-        Filename stem if using NX native.
+    part_numbers
+        Part numbers of component to search for if using managed (Teamcenter) NX,
+        or filename stems if using NX native.
     skip_ref_comps
         Skip components marked as "Reference-only" as well as their entire
         sub-trees. Default ``True``. If ``True``, the entire tree will be opened
@@ -112,10 +111,9 @@ def find_components_in_assembly_tree(
                     continue
                 child_pn = prototype.Name
 
-            if child_pn == part_number:
+            if child_pn in part_numbers:
                 result.append(child)
-            else:
-                _search(child)
+            _search(child)
 
     _search(parent)
 

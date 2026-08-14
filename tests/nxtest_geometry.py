@@ -328,3 +328,177 @@ class TestRoundtripGeometry(unittest.TestCase):
                     ],
                 },
             )
+
+
+@native
+class TestTransformGeometry(unittest.TestCase):
+    """Test the ``Geometry.transform`` function."""
+
+    @classmethod
+    def setUpClass(cls):
+        # The transformed feature assembly has a single component
+        # called transformed_feature. This component is a part file with several
+        # features that are defined relative to the the component origin
+        # Note that all features are in the "MODEL" reference set which avoids
+        # this test needing to switch to "Entire Part" to test datums, etc.
+        transform_test_assy = Path("tests") / "data" / "transformed_feature_assy.prt"
+        cls.work_part = open_part(transform_test_assy, open_assembly=True)
+        root_component = cls.work_part.ComponentAssembly.RootComponent
+
+        # Find the component with features we're going to want to query
+        cls.feature_component = root_component.GetChildren()[0]
+
+        # The position of the component is a tuple of Point3d, Matrix3x3
+        cls.transform = cls.feature_component.GetPosition()
+
+        cls.feature_part = cls.feature_component.Prototype
+        cls.feature_part.LoadFully()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.work_part.Close(
+            NXOpen.BasePart.CloseWholeTree.TrueValue,  # pyright: ignore[reportArgumentType]
+            NXOpen.BasePart.CloseModified.CloseModified,  # pyright: ignore[reportArgumentType]
+            None,  # pyright: ignore[reportArgumentType]
+        )
+        return super().tearDownClass()
+
+    def _get_feature(self, feature_name: str) -> NXOpen.NXObject:
+        """Get a uniquely-named feature from the feature part."""
+        feats = [f for f in self.feature_part.Features if f.Name == feature_name]
+        self.assertEqual(len(feats), 1, "Feature should have been found in test part")
+        return feats.pop()
+
+    def test_transform_point3d(self):
+        """Test Point3d transformation"""
+        point_feat: NXOpen.Features.PointFeature = self._get_feature("OFFSET_PT")
+        point_entity: NXOpen.Point = point_feat.GetEntities().pop()
+        coords: NXOpen.Point3d = point_entity.Coordinates
+
+        # Transform the point using the function under test
+        transformed_point = Geometry.from_nx(coords).transform(*self.transform)
+
+        # Now measure the feature relative to the top level of the assembly:
+        point_occurrence = self.feature_component.FindOccurrence(point_entity)
+
+        point_occ_geometry = Geometry.from_nx(point_occurrence.Coordinates)
+
+        self.assertEqual(
+            transformed_point,
+            point_occ_geometry,
+            "Transformation should match feature occurrence within assembly.",
+        )
+
+    def test_transform_line(self):
+        """Test line transformation."""
+        line_feat: NXOpen.Features.AssociativeLine = self._get_feature("OFFSET_LINE")
+        line_entity: NXOpen.Line = line_feat.GetEntities().pop()
+
+        transformed_line = Geometry.from_nx(line_entity).transform(*self.transform)
+        line_occurrence: NXOpen.Line = self.feature_component.FindOccurrence(
+            line_entity
+        )  # pyright: ignore[reportAssignmentType]
+
+        line_occ_geometry = Geometry.from_nx(line_occurrence)
+
+        self.assertEqual(
+            transformed_line.start, line_occ_geometry.start, "Start points should match"
+        )
+        self.assertEqual(
+            transformed_line.end, line_occ_geometry.end, "End points should match"
+        )
+
+    def test_transform_arc(self):
+        """Test arc transformation."""
+        arc_feat: NXOpen.Features.AssociativeArc = self._get_feature("OFFSET_ARC")
+        arc_entity: NXOpen.Arc = arc_feat.GetEntities().pop()
+
+        transformed_arc = Geometry.from_nx(arc_entity).transform(*self.transform)
+
+        arc_occurrence: NXOpen.Arc = self.feature_component.FindOccurrence(arc_entity)  # pyright: ignore[reportAssignmentType]
+
+        arc_occ_geom = Geometry.from_nx(arc_occurrence)
+
+        for attr in ["radius", "start_angle", "end_angle", "center"]:
+            self.assertEqual(
+                getattr(transformed_arc, attr),
+                getattr(arc_occ_geom, attr),
+                f"{attr} should match",
+            )
+
+        self._assert_mat3_almost_equal(transformed_arc.matrix, arc_occ_geom.matrix)
+
+    def test_transform_not_implemented(self):
+        """Test spline transformation (not implemented)."""
+        # TODO (SW-17276): Add test case for spline transformation
+        spline_feat: NXOpen.Features.StudioSpline = self._get_feature("OFFSET_SPLINE")
+        spline_entity: NXOpen.Spline = spline_feat.GetEntities().pop()
+
+        with self.assertRaises(NotImplementedError):
+            _ = Geometry.from_nx(spline_entity).transform(*self.transform)
+
+    def test_transform_plane(self):
+        """Test plane transformation."""
+        plane_feat: NXOpen.Features.DatumPlaneFeature = self._get_feature(
+            "OFFSET_PLANE"
+        )
+        plane_entity: NXOpen.DatumPlane = plane_feat.GetEntities().pop()
+
+        transformed_plane = Geometry.from_nx(plane_entity).transform(*self.transform)
+
+        plane_occurrence: NXOpen.DatumPlane = self.feature_component.FindOccurrence(
+            plane_entity
+        )  # pyright: ignore[reportAssignmentType]
+
+        plane_occ_geom = Geometry.from_nx(plane_occurrence)
+
+        for attr in ["origin", "normal"]:
+            self.assertEqual(
+                getattr(transformed_plane, attr),
+                getattr(plane_occ_geom, attr),
+                f"{attr} should match",
+            )
+
+    def test_transform_csys(self):
+        """Test Coordinate System transformation"""
+        csys_feat: NXOpen.Features.DatumCsys = self._get_feature("OFFSET_CSYS")
+        csys_entity: NXOpen.CartesianCoordinateSystem = [
+            ent
+            for ent in csys_feat.GetEntities()
+            if isinstance(ent, NXOpen.CartesianCoordinateSystem)
+        ].pop()
+
+        # Transform the point using the function under test
+        transformed_csys = Geometry.from_nx(csys_entity).transform(*self.transform)
+
+        # Now measure the feature relative to the top level of the assembly:
+        csys_occurrence: NXOpen.CartesianCoordinateSystem = (
+            self.feature_component.FindOccurrence(csys_entity)
+        )  # pyright: ignore[reportAssignmentType]
+
+        csys_occ_geometry = Geometry.from_nx(csys_occurrence)
+
+        self.assertEqual(
+            transformed_csys.origin,
+            csys_occ_geometry.origin,
+            "Matrix origin should match feature occurrence within assembly.",
+        )
+        self._assert_mat3_almost_equal(
+            transformed_csys.orientation, csys_occ_geometry.orientation
+        )
+
+    def _assert_mat3_almost_equal(
+        self,
+        mat_a: geometry.Matrix3x3,
+        mat_b: geometry.Matrix3x3,
+        places: int | None = None,
+    ) -> None:
+        """Check that matrices are equal within tolerance."""
+        fields = ["Xx", "Xy", "Xz", "Yx", "Yy", "Yz", "Zx", "Zy", "Zz"]
+        for field in fields:
+            self.assertAlmostEqual(
+                getattr(mat_a, field),
+                getattr(mat_b, field),
+                places=places,
+                msg=f"'{field}' field does not match.",
+            )

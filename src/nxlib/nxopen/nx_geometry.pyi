@@ -47,6 +47,9 @@ class NxGeometryMixin:
     def from_nx(cls, nx_geometry: NXOpen.Plane) -> "geometry.Plane": ...
     @overload
     @classmethod
+    def from_nx(cls, nx_geometry: NXOpen.DatumPlane) -> "geometry.Plane": ...
+    @overload
+    @classmethod
     def from_nx(cls, nx_geometry: NXOpen.Point3d) -> "geometry.Point3d": ...
     @overload
     @classmethod

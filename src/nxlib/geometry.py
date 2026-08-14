@@ -165,6 +165,11 @@ class Plane(Geometry):
 
 
 @dataclass
+class DatumPlane(Plane):
+    """Model for NXOpen.DatumPlane."""
+
+
+@dataclass
 class Line(Geometry):
     """Model for NXOpen.Line."""
 

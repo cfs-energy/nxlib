@@ -27,7 +27,7 @@ import os
 #
 # A test_version unit test exists to ensure that this dynamic
 # version and the version listed in pyproject.toml match.
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 
 from ._status import (

@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.8.0] - 2026-08-12
+
+### Added
+- Added the `nxlib.geometry.Geometry.transform` function, which allows transforming `Geometry` objects from a local to a global coordinate system.
+
+### Updated
+- `nxlib.nxopen.component.find_components_in_assembly_tree` now takes multiple part number arguments. This allows for faster searching of multiple components within a large tree, requiring only a single recursive trip through the assembly tree.
+
 ## [0.7.0] - 2026-08-10
 
 ### Added

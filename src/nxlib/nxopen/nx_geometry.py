@@ -1,12 +1,12 @@
 # Copyright 2026 Commonwealth Fusion Systems (CFS), all rights reserved.
 # This entire source code file represents the sole intellectual property of CFS.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,6 +22,7 @@ import NXOpen  # pyright: ignore[reportMissingModuleSource]
 
 from nxlib import geometry
 
+MathUtils = NXOpen.Session.GetSession().MathUtils
 NXOpenGeometry = (
     NXOpen.Curve
     | NXOpen.Point3d
@@ -64,6 +65,7 @@ class NxGeometryMixin:
         maker_functions = {
             NXOpen.Arc: cls._make_arc,
             NXOpen.CartesianCoordinateSystem: cls._make_csys,
+            NXOpen.DatumPlane: cls._make_plane,
             NXOpen.Ellipse: cls._make_ellipse,
             NXOpen.Line: cls._make_line,
             NXOpen.Matrix3x3: cls._make_mat3x3,
@@ -121,6 +123,7 @@ class NxGeometryMixin:
                 )
                 raise ValueError(msg)
             match self:
+                # TODO: Add support for NXOpen.DatumPlane
                 case geometry.Plane():
                     return part.Planes.CreatePlane(
                         self.origin.to_nx(),
@@ -179,6 +182,93 @@ class NxGeometryMixin:
                     f"Could not create NXOpen object corresponding to {self.__class__}."
                 )
                 raise NotImplementedError(msg)
+
+    def transform(
+        self,
+        translation: NXOpen.Point3d
+        | NXOpen.Vector3d
+        | "geometry.Point3d"
+        | "geometry.Vector3d"
+        | None,
+        rotation: NXOpen.Matrix3x3 | "geometry.Matrix3x3" | None,
+    ) -> "geometry.Geometry":
+        """Transform a geometry object with a translation and rotation.
+
+        Parameters
+        ----------
+        translation
+            Translation vector or point.
+        rotation
+            Rotation matrix.
+
+        Returns
+        -------
+        Transformed geometry. For ``nxlib.geometry.CoordinateSequence`` objects,
+        a new object is returned. All other `nxlib.geometry.Geometry`` subclasses
+        are modified in place.
+
+        Raises
+        ------
+        ``TypeError`` for invalid translation or rotation objects.
+        ``NotImplementedError`` for objects that could not be transformed.
+
+        """
+        # Convert the translation to a NXOpen.Vector3d
+        match translation:
+            case NXOpen.Point3d():
+                transvec = MathUtils.ConvertPoint3ToVector3(translation)
+            case geometry.Point3d():
+                transvec = MathUtils.ConvertPoint3ToVector3(translation.to_nx())
+            case geometry.Vector3d():
+                transvec = translation.to_nx()
+            case NXOpen.Vector3d():
+                transvec = translation
+            case None:  # Zero translation
+                transvec = NXOpen.Vector3d(0.0, 0.0, 0.0)  # pyright: ignore[reportCallIssue]
+            case _:
+                msg = f"Invalid translation object: {translation}"
+                raise TypeError(msg)
+
+        # Convert the rotation to an NXOpen.Matrix3x3
+        match rotation:
+            case geometry.Matrix3x3():
+                rotmat = rotation.to_nx()
+            case NXOpen.Matrix3x3():
+                rotmat = rotation
+            case None:  # Identity matrix, no rotation
+                rotmat = NXOpen.Matrix3x3(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)  # pyright: ignore[reportCallIssue]
+            case _:
+                msg = f"Invalid rotation object: {rotation}"
+                raise TypeError(msg)
+
+        # Class-specific transformation
+        match self:
+            case geometry.Arc() | geometry.Ellipse():
+                self.center = _transform_point3d(self.center.to_nx(), transvec, rotmat)
+                self.matrix = _transform_matrix3x3(self.matrix.to_nx(), rotmat)
+            case geometry.CartesianCoordinateSystem():
+                self.origin = _transform_point3d(self.origin.to_nx(), transvec, rotmat)
+                self.orientation = _transform_matrix3x3(
+                    self.orientation.to_nx(), rotmat
+                )
+            case geometry.Line():
+                self.start = _transform_point3d(self.start.to_nx(), transvec, rotmat)
+                self.end = _transform_point3d(self.end.to_nx(), transvec, rotmat)
+            case geometry.Matrix3x3():
+                return _transform_matrix3x3(self.to_nx(), rotmat)
+            case geometry.Plane():
+                self.origin = _transform_point3d(self.origin.to_nx(), transvec, rotmat)
+                self.normal = _transform_vector3d(self.normal.to_nx(), rotmat)
+            case geometry.Point3d():
+                return _transform_point3d(self.to_nx(), transvec, rotmat)
+            case geometry.Vector3d():
+                return _transform_vector3d(self.to_nx(), rotmat)
+            case _:
+                # TODO: Add support for spline transformation
+                msg = f"Unsupported type for transform: {self}"
+                raise NotImplementedError(msg)
+
+        return self
 
     @classmethod
     def _make_arc(cls, arc: NXOpen.Arc, target_cls: type) -> "geometry.Arc":
@@ -246,7 +336,9 @@ class NxGeometryMixin:
         )
 
     @classmethod
-    def _make_plane(cls, plane: NXOpen.Plane, target_cls: type) -> "geometry.Plane":
+    def _make_plane(
+        cls, plane: NXOpen.Plane | NXOpen.DatumPlane, target_cls: type
+    ) -> "geometry.Plane":
         """Convert an NXOpen.Plane to a ``geometry.Plane``."""
         return target_cls(cls.from_nx(plane.Origin), cls.from_nx(plane.Normal))
 
@@ -272,3 +364,30 @@ class NxGeometryMixin:
     def _make_vec3(cls, vec: NXOpen.Vector3d, target_cls: type) -> "geometry.Vector3d":
         """Convert an NXOpen.Vector3d to a tuple."""
         return target_cls(vec.X, vec.Y, vec.Z)
+
+
+def _transform_point3d(
+    point: NXOpen.Point3d, transvec: NXOpen.Vector3d, rotmat: NXOpen.Matrix3x3
+) -> "geometry.Point3d":
+    """Transform a Point3d with a given vector and rotation matrix."""
+    return geometry.Point3d.from_nx(
+        MathUtils.AddPoint3ToVector3(
+            MathUtils.Multiply(MathUtils.TransposeMatrix3(rotmat), point), transvec
+        )
+    )  # type: ignore
+
+
+def _transform_vector3d(
+    vector: NXOpen.Vector3d, rotmat: NXOpen.Matrix3x3
+) -> "geometry.Vector3d":
+    """Transform a Vector3d with a given rotation matrix."""
+    return geometry.Vector3d.from_nx(
+        MathUtils.Multiply(MathUtils.TransposeMatrix3(rotmat), vector)
+    )  # type: ignore
+
+
+def _transform_matrix3x3(matrix: NXOpen.Matrix3x3, rotmat: NXOpen.Matrix3x3):
+    """Transform a Matrix3x3 with a given rotation matrix."""
+    return geometry.Matrix3x3.from_nx(
+        MathUtils.MultiplyMatrix3AndMatrix3(rotmat, matrix)
+    )
