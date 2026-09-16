@@ -430,7 +430,7 @@ class TestTransformGeometry(unittest.TestCase):
 
     def test_transform_not_implemented(self):
         """Test spline transformation (not implemented)."""
-        # TODO (SW-17276): Add test case for spline transformation
+        # TODO: Add test case for spline transformation
         spline_feat: NXOpen.Features.StudioSpline = self._get_feature("OFFSET_SPLINE")
         spline_entity: NXOpen.Spline = spline_feat.GetEntities().pop()
 

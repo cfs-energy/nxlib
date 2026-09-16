@@ -14,12 +14,15 @@
 # limitations under the License.
 """Functions for installing and uninstalling nxlib to NX."""
 
+import logging
 import os
 import shutil
 import subprocess
 from pathlib import Path
 
 import nxlib
+
+logger = logging.getLogger(__name__)
 
 
 def install_to_nx(overwrite: bool = False) -> int:
@@ -53,10 +56,11 @@ def install_to_nx(overwrite: bool = False) -> int:
         if overwrite:
             uninstall_from_nx()
         else:
-            raise FileExistsError(
-                "nxlib is already linked from %s to %s"
-                % (nxlib.status.nxlib_symlink_path, nx_link_path)
+            msg = (
+                f"nxlib is already linked from {nxlib.status.nxlib_symlink_path} "
+                f"to {nx_link_path}"
             )
+            raise FileExistsError(msg)
 
     args = [
         "mklink",
@@ -65,9 +69,12 @@ def install_to_nx(overwrite: bool = False) -> int:
         str(nx_link_path),
         str(nxlib_target_path),
     ]
-    print("Running '%s'..." % " ".join(args))
+    logger.debug("Calling '%s'...", " ".join(args))
 
-    result = subprocess.run(args, shell=True)
+    result = subprocess.run(args, shell=True, stdout=subprocess.PIPE)
+    if result.stdout:
+        for line in result.stdout.splitlines():
+            logger.info("%s", line.decode())
 
     return result.returncode
 
@@ -107,7 +114,7 @@ def install_typings(
             % typings_dir
         )
 
-    print("Copying %s to %s ..." % (typings_dir, Path(development_base).resolve()))
+    logger.info("Copying %s to %s ...", typings_dir, Path(development_base).resolve())
     if not dry_run:
         try:
             shutil.copytree(
@@ -115,7 +122,7 @@ def install_typings(
             )
         except shutil.Error as err:
             raise PermissionError(err)
-        print("Typings installed to %s" % Path(development_base).resolve())
+        logger.info("Typings installed to %s", Path(development_base).resolve())
     return 0
 
 
@@ -128,13 +135,16 @@ def uninstall_from_nx() -> int:
     nx_link_path = nxlib.status.nx_python_root / "nxlib"
     if not nx_link_path.exists():
         raise FileNotFoundError("NX installed, but nxlib is not. Aborted.")
-    print("Removing existing nxlib installation from %s..." % nx_link_path)
+    logger.info("Removing existing nxlib installation from %s...", nx_link_path)
     args = [
         "rmdir",
         str(nx_link_path),
     ]
-    print("Running ", args)
-    result = subprocess.run(args, shell=True)
+    logger.debug("Calling '%s'", " ".join(args))
+    result = subprocess.run(args, shell=True, stdout=subprocess.PIPE)
+    if result.stdout:
+        for line in result.stdout.splitlines():
+            logger.info("%s", line.decode())
     return result.returncode
 
 
@@ -147,13 +157,15 @@ def show_install_status():
 
     nx_link_path = pyroot / "nxlib"
     if nx_link_path.exists():
-        print("nxlib path: %s" % nx_link_path.resolve())
-        print("nxlib symlinked to: %s" % nx_link_path)
+        print(f"nxlib path: {nx_link_path.resolve()}")
+        print(f"nxlib symlinked to: {nx_link_path}")
         if not nxlib.status.nxlib_symlinked:
             print(
-                "NOTE: A version of nxlib different from this one is currently installed to NX!"
+                "WARNING: A version of nxlib different from this one is currently "
+                "installed to NX!"
             )
     else:
         print(
-            "nxlib is not installed to NX, and can be installed by running 'nxlib install'."
+            "nxlib is not installed to NX, and can be installed by running "
+            "'nxlib install'."
         )

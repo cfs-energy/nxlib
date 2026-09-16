@@ -15,18 +15,23 @@
 """Run a journal or arbitrary Python code through managed teamcenter."""
 
 import importlib.resources
+import logging
 import os
 import subprocess
 import sys
 import tempfile
+import warnings
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from dotenv import load_dotenv
 
 import nxlib
+from nxlib._logging import log_socket_listener
 from nxlib.tc_auth import TcAuthMethod, tc_credential_args
 from nxlib.utility.common import RunMode
+
+logger = logging.getLogger(__name__)
 
 
 def run_journal(
@@ -35,7 +40,9 @@ def run_journal(
     run_mode: RunMode = "native",
     auth_method: TcAuthMethod = TcAuthMethod.AUTO,
     local: bool = False,
-    verbose: bool = False,
+    log_level: int
+    | Literal["NOTSET", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = logging.INFO,
+    **kwargs,
 ) -> int:
     """Run an NX journal headlessly. This function is the main entry point for
     running NXOpen based journals with nxlib. Attempts to set up environment
@@ -62,35 +69,49 @@ def run_journal(
         Default ``False``.
         <br><br>
         Note that NX can only use an alternate interpreter if it has the same minor
-        version as the built-in interpreter. For example, as of this writing the built-in
-        interpreter is Python 3.10.12, but we can use an alternate interpreter up to
+        version as the built-in interpreter. For example, as of this writing the built-
+        in interpreter is Python 3.10.12, but we can use an alternate interpreter up to
         3.10.16. You'll get an error such as "Error loading libraries needed to run a
         journal" if you try to run with Python > 3.10.
         <br><br>
         If an entirely different python interpreter is desired, you can specify this
-        by setting the "UGII_PYTHON_LIBRARY" and "UGII_PYTHONPATH" environment variables.
-    verbose
-        Show detailed log messages. Default ``False``.
+        by setting the "UGII_PYTHON_LIBRARY" and "UGII_PYTHONPATH" environment variables
+    log_level
+        Logging level to use. Default ``logging.INFO``. Log messages from the NX
+        subprocess are passed directly to this module's logger.
 
     Returns
     -------
     Return code from run_journal.exe.
     """
+    logger.setLevel(log_level)
+    # TODO: Remove backwards compatibility for previous APIs
+    if "verbose" in kwargs:
+        msg = (
+            "verbose is deprecated. To use this behavior in the future,"
+            " please use log_level=logging.DEBUG."
+        )
+        warnings.warn(msg, DeprecationWarning)
+        if kwargs.get("verbose"):
+            logger.setLevel(logging.DEBUG)
+
     # Check that NX is installed and that the journal to be run exists
     if not nxlib.status.nx_installed:
         raise nxlib.NxNotInstalledError("NX is not installed on this system.")
 
     journal_path = Path(journal_path)
     if not journal_path.exists():
-        raise FileNotFoundError("Could not locate Python journal %s" % journal_path)
+        msg = f"Could not locate Python journal {journal_path}"
+        raise FileNotFoundError(msg)
 
     # Path to the run_journal executable relative to UGII_BASE_DIR
     run_journal_exe_path = nxlib.status.nx_headless_executable
     if run_journal_exe_path is None or not run_journal_exe_path.exists():
-        raise FileNotFoundError("Could not locate %s" % run_journal_exe_path)
+        msg = f"Could not locate {run_journal_exe_path}"
+        raise FileNotFoundError(msg)
 
     # Set up the environment variables for TC/NX execution
-    _set_env_vars(auth_method, verbose)
+    _set_env_vars(auth_method)
 
     if local:
         _set_env_local_python()
@@ -101,8 +122,7 @@ def run_journal(
     ]
     if run_mode == "managed":
         exec_args.append("-pim")  # run in managed mode
-        if verbose:
-            print(f"Using {auth_method.resolve()}")
+        logger.debug("Using auth method: %s", auth_method.resolve())
         if auth_method.resolve() == TcAuthMethod.PASSWORD:
             exec_args.extend(tc_credential_args())
 
@@ -112,9 +132,19 @@ def run_journal(
         exec_args.append("-args")
         exec_args.extend(journal_args)
 
-    if verbose:
-        print(f"Running {' '.join(exec_args)}")
-    res = subprocess.run(exec_args)
+    logger.info("Running %s", " ".join(exec_args))
+    with log_socket_listener() as port:
+        res = subprocess.run(
+            exec_args,
+            # Set the environment variables to connect the journal's logger
+            env={
+                **os.environ,
+                "NXLIB_LOG_SOCKET_PORT": str(port),
+                "NXLIB_LOG_LEVEL": str(log_level),
+            },
+        )
+    logger.info("NX Journal completed with exit code %d", res.returncode)
+
     return res.returncode
 
 
@@ -167,7 +197,7 @@ def run_python(
             os.unlink(tmp_journal.name)
 
 
-def _set_env_vars(auth_method: TcAuthMethod, verbose: bool) -> None:
+def _set_env_vars(auth_method: TcAuthMethod) -> None:
     """Set up the environment variables in order for NX and Teamcenter to execute.
 
     Attempts to load environment variables from a .env file. If the .site-env file
@@ -183,18 +213,14 @@ def _set_env_vars(auth_method: TcAuthMethod, verbose: bool) -> None:
     ----------
     auth_method
         Authentication method for Teamcenter
-    verbose
-        Show detailed log messages. Default ``False``.
     """
     # Attempt to load site-specific environment variables that are packaged with nxlib
     if importlib.resources.is_resource("nxlib.utility", ".site-env"):
         with importlib.resources.path("nxlib.utility", ".site-env") as envfile:
-            if verbose:
-                print(f"Loading environment from {envfile.resolve()}")
+            logger.debug("Loading environment from %s", envfile.resolve())
             load_dotenv(dotenv_path=envfile)
     else:  # Fallback to default .env file if it exists
-        if verbose:
-            print("Loading environment from default path...")
+        logger.debug("Loading environment from default path...")
         load_dotenv()
 
     if auth_method.resolve() != TcAuthMethod.SSO:

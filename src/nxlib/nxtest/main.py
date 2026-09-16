@@ -15,6 +15,7 @@
 """Run unit tests on NX functions."""
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -23,6 +24,8 @@ from nxlib.tc_auth import TcAuthMethod
 from nxlib.utility.common import add_runmode_group
 
 from . import TEST_DISCOVERY_PATTERN
+
+logger = logging.getLogger(__name__)
 
 
 class ActionPytestRunner(argparse.Action):
@@ -70,7 +73,8 @@ def parser() -> argparse.ArgumentParser:
         "--auth",
         type=TcAuthMethod,
         default="auto",
-        help="Authentication method for Teamcenter. Choose from 'auto' (default), 'sso' or 'password'.",
+        help="Authentication method for Teamcenter. Choose from 'auto' (default), "
+        "'sso' or 'password'.",
     )
     parser.add_argument(
         "--allow-extern-nxlib",
@@ -86,11 +90,11 @@ def main():
     """Main entry point for nxlib test runner (nxtest)."""
     args, _ = parser().parse_known_args()
     if not (nxlib.status.nxlib_symlinked or args.allow_extern_nxlib):
-        print(
-            "ERROR: The version of nxlib that is symlinked to NX is not the ",
-            "same version that is being used to run these tests!\n",
-            "Please run `nxlib install --overwrite` or call the test suite with the ",
-            "--allow-extern-nxlib flag to continue.",
+        logger.error(
+            "The version of nxlib that is symlinked to NX is not the "
+            "same version that is being used to run these tests!\n"
+            "Please run `nxlib install --overwrite` or call the test suite with the "
+            "--allow-extern-nxlib flag to continue."
         )
         exit(1)
     exit(

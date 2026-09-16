@@ -12,6 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Tests for the install utilities."""
+
+import logging
 from pathlib import Path
 
 import pytest
@@ -50,6 +53,7 @@ class PatchSubprocessRun:
         self.args = args
         self.returncode = retcode
         self.kwargs = kwargs
+        self.stdout = None
         capture.update(self.__dict__)
 
 
@@ -110,14 +114,14 @@ class TestInstallTypings:
             instl.install_typings("no_dir")
 
     def test_install_typings_missing(self, monkeypatch, tmp_path):
-        """Should raise an error if NX is installed but we can't find the typings dir."""
+        """Should raise an error if NX is installed but can't find the typings dir."""
         # Make it look like NX is installed
         ugii_tmp = tmp_path
         monkeypatch.setenv("UGII_BASE_DIR", str(ugii_tmp))
         with pytest.raises(FileNotFoundError):
             instl.install_typings(".")
 
-    def test_install_typings(self, monkeypatch, tmp_path, capsys):
+    def test_install_typings(self, monkeypatch, tmp_path, caplog):
         """Test a dry run of the typing installation"""
         # Make it look like NX is installed
         ugii_tmp = tmp_path
@@ -127,12 +131,17 @@ class TestInstallTypings:
         typings_dir.mkdir(parents=True)
 
         # Command should succeed with a dry run (don't actually run shutil.copytree)
-        assert instl.install_typings(".", dry_run=True) == 0
+        with caplog.at_level(logging.DEBUG):
+            assert instl.install_typings(".", dry_run=True) == 0, (
+                "Command should succeed on a dry run."
+            )
 
-        # The target and source directories should be in the output
-        captured = capsys.readouterr()
-        assert str(typings_dir.resolve()) in captured.out
-        assert str(Path(".").resolve()) in captured.out
+        assert str(typings_dir.resolve()) in caplog.records[0].message, (
+            "Target directory should be in the output"
+        )
+        assert str(Path(".").resolve()) in caplog.records[0].message, (
+            "Source directory should be in the output"
+        )
 
 
 class TestUninstall:

@@ -27,7 +27,7 @@ import os
 #
 # A test_version unit test exists to ensure that this dynamic
 # version and the version listed in pyproject.toml match.
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 
 from ._status import (
@@ -41,8 +41,8 @@ from .exceptions import NxNotInstalledError
 status = NxlibStatus(__version__)
 # NOTE: models.geometry has conditional logic that depends on status.interpreter_is_nx.
 # Therefore the nxlib status has to be initialized prior to importing models.geometry.
-from . import geometry  # noqa: E402, I001
-
+from . import geometry  # noqa: E402
+from ._logging import add_listing_window_handler, setup_subprocess_logging  # noqa: E402
 
 __all__ = [
     "geometry",
@@ -60,7 +60,7 @@ if status.interpreter_is_nx or "NXLIB_DOCGEN" in os.environ:
     from . import nxopen as nxopen
     from .nxopen.common import nxprint as nxprint
 
-    __all__.extend(["models", "nxopen"])
+    __all__.extend(["models", "nxopen", "nxprint"])
 
 if not status.interpreter_is_nx:
     # Here we import utility functions that won't be available to or needed by the
@@ -69,3 +69,10 @@ if not status.interpreter_is_nx:
     from .utility.run import run_python as run_python
 
     __all__.extend(["run_journal", "run_python"])
+
+if status.interpreter_is_nx:
+    if os.getenv("NXLIB_LOG_SOCKET_PORT"):
+        setup_subprocess_logging()
+    # Special case for graphical mode to show log statements in the listing window
+    if status.nx_execution_mode == NxExecutionMode.GRAPHICAL:
+        add_listing_window_handler()

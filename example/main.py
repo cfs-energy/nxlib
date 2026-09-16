@@ -19,6 +19,7 @@ calling the NX journal, and then analyzing the serialized data."""
 
 import argparse
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -29,6 +30,8 @@ import numpy as np
 
 from nxlib import run_journal
 from nxlib.io import NxDecoder
+
+logger = logging.getLogger(__name__)
 
 
 def convert_xyz_to_rz(pts_xyz: np.ndarray) -> np.ndarray:
@@ -50,8 +53,6 @@ def decode_points(
     # The first step is to run the journal to extract the points
     # using the run_journal function. This opens a separate process that
     # runs NX headlessly.
-    print("Running NX journal to extract points...\n")
-
     # As a best practice, always use fully-qualified paths when working with NX.
     points_file = Path("points.json").resolve()
 
@@ -62,14 +63,12 @@ def decode_points(
         str(Path(part_file).resolve()),
         str(points_file),
     )
-    if exit_code == 0:
-        print("\nJournal execution completed successfully.\n")
-    else:
-        print(f"\nJournal execution failed with exit code {exit_code}.")
+    if exit_code != 0:
+        logger.error("NX journal finished with exit code %d", exit_code)
         exit(exit_code)
 
     # Now that we have the data, we can load it with our local Python interpreter
-    print(f"Deserializing points from {points_file}...")
+    logger.info("Deserializing points from %s...", points_file)
     with open(points_file) as point_data:
         # Note that we deserialize using the nxlib.io.NxDecoder, which makes
         # each point into an nxlib.geometry.Point3d object
@@ -77,19 +76,19 @@ def decode_points(
 
     # Now that we're out of the NX interpreter, we can use numpy, a third party library
     # that utilizes compiled extension modules, to perform numerical analysis
-    print("Done. Converting to poloidal coordinates...")
+    logger.info("Done. Converting to poloidal coordinates...")
     points = np.array(data["points"])
     points_poloidal = convert_xyz_to_rz(points)
 
     # We'll use matplotlib to plot the data, and write the resulting plot
     # to a PNG file. Maybe that file will have a secret message for us!
-    print("Plotting...")
+    logger.info("Plotting...")
     fig, ax = plt.subplots()
     ax.set_aspect("equal")
     ax.plot(points_poloidal[0], points_poloidal[1], "o", color="#CF6D46", markersize=1)
     ax.axis("off")
     fig.savefig(str(output_file))
-    print(f"Saved output to {output_file}")
+    logger.info("Saved output to %s", output_file)
 
     # Automatically open the result to see what's in it as long as we aren't
     # running the the test suite
@@ -100,6 +99,10 @@ def decode_points(
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        format="[%(levelname)s] [%(name)s] %(message)s", level=logging.INFO
+    )
+
     parser = argparse.ArgumentParser("nxlib example")
     parser.add_argument(
         "part_file",

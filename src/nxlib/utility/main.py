@@ -15,6 +15,8 @@
 """Command line tools and utilities for nxlib."""
 
 import argparse
+import logging
+import sys
 from pathlib import Path
 
 import nxlib
@@ -23,17 +25,28 @@ from nxlib.utility.common import add_runmode_group
 
 from . import install
 
+logger = logging.getLogger(__name__)
+
 
 def main() -> None:
     """Command line entry point for nxlib utilities."""
+    logging.basicConfig(
+        format="[%(levelname)s] [%(name)s]: %(message)s", level=logging.INFO
+    )
     parser = argparse.ArgumentParser(
-        description="Command line utilities for nxlib. Version %s." % nxlib.__version__
+        description=f"Command line utilities for nxlib. Version {nxlib.__version__}"
     )
     parser.add_argument(
         "--version",
         action="store_true",
-        default=False,
         help="Print the version and exit.",
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        type=str.upper,
+        help="Set the logging level",
     )
     subparsers = parser.add_subparsers(title="Commands", metavar="", dest="command")
 
@@ -41,11 +54,14 @@ def main() -> None:
     inst_parser = subparsers.add_parser(
         "install",
         help="Make nxlib available to your local NX installation.",
-        description="""Make nxlib available for import by all nx journals by
-        creating a directory symbolic link from the NX Python path to nxlib.""",
+        description="Make nxlib available for import by all nx journals by"
+        " creating a directory symbolic link from the NX Python path to nxlib.",
     )
     inst_parser.add_argument(
-        "-y", "--overwrite", action="store_true", default=False, required=False
+        "-y",
+        "--overwrite",
+        action="store_true",
+        help="Overwrite the existing installation.",
     )
 
     # Uninstall
@@ -55,7 +71,7 @@ def main() -> None:
 
     # Status
     status_parser = subparsers.add_parser(
-        "status", help="Show nxlib installation status"
+        "status", help="Show nxlib installation status."
     )
     status_parser.add_argument(
         "-v", "--verbose", action="store_true", help="Show detailed nxlib status."
@@ -76,20 +92,18 @@ def main() -> None:
         "-y",
         "--overwrite",
         action="store_true",
-        default=False,
         help="Overwrite existing typings.",
     )
     typings_parser.add_argument(
         "--dry-run",
         action="store_true",
-        default=False,
         help="Show the files that would be copied, but don't copy anything.",
     )
 
     # Run
     run_parser = subparsers.add_parser(
         "run",
-        help="Run a journal or arbitrary Python code with NX",
+        help="Run a journal or arbitrary Python code with NX.",
         description="Run a journal or arbitrary Python code with NX.",
     )
     journal_group = run_parser.add_mutually_exclusive_group(required=True)
@@ -98,7 +112,7 @@ def main() -> None:
         nargs="?",
         default=None,
         type=Path,
-        help="Path to journal to run",
+        help="Path to journal to run.",
     )
     journal_group.add_argument(
         "-c",
@@ -112,7 +126,6 @@ def main() -> None:
     run_parser.add_argument(
         "--local",
         action="store_true",
-        default=False,
         help="Use the local Python interpreter rather than the NX built-in Python.",
     )
     run_parser.add_argument(
@@ -122,38 +135,36 @@ def main() -> None:
         help="Authentication method for Teamcenter. Choose from 'auto' (default), 'sso'"
         " or 'password'.",
     )
-    run_parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Show detailed nxlib status."
-    )
 
     args, remainder = parser.parse_known_args()
+    logger.setLevel(args.log_level)
+
     if args.version:
-        print("nxlib version %s" % nxlib.__version__)
+        print(f"nxlib version {nxlib.__version__}")
         return
 
     match args.command:
         case "install":
             try:
-                exit(install.install_to_nx(overwrite=args.overwrite))
+                sys.exit(install.install_to_nx(overwrite=args.overwrite))
             except FileExistsError as err:
-                print("ERROR: %s" % err)
-                print("Try rerunning with --overwrite.")
-                exit(1)
-            except (nxlib.NxNotInstalledError, FileExistsError) as err:
-                print("ERROR: %s" % err)
-                exit(2)
+                logger.error("%s\nTry rerunning with --overwrite", err)
+                sys.exit(1)
+            except nxlib.NxNotInstalledError as err:
+                logger.error("%s", err)
+                sys.exit(2)
         case "run":
             remainder = [arg for arg in remainder if arg != "--"]
             run_journal_kwargs = {
                 "run_mode": args.run_mode,
                 "auth_method": args.auth,
                 "local": args.local,
-                "verbose": args.verbose,
+                "log_level": args.log_level,
             }
             if args.code:
-                exit(nxlib.run_python(args.code, *remainder, **run_journal_kwargs))
+                sys.exit(nxlib.run_python(args.code, *remainder, **run_journal_kwargs))
             else:
-                exit(
+                sys.exit(
                     nxlib.run_journal(
                         args.journal_path, *remainder, **run_journal_kwargs
                     )
@@ -165,13 +176,13 @@ def main() -> None:
                 install.show_install_status()
         case "remove":
             try:
-                exit(install.uninstall_from_nx())
+                sys.exit(install.uninstall_from_nx())
             except (nxlib.NxNotInstalledError, FileNotFoundError) as err:
-                print("ERROR: %s" % err)
-                exit(1)
+                logger.error("%s", err)
+                sys.exit(1)
         case "typings":
             try:
-                exit(
+                sys.exit(
                     install.install_typings(
                         development_base=args.project_root,
                         overwrite=args.overwrite,
@@ -179,18 +190,18 @@ def main() -> None:
                     )
                 )
             except FileExistsError as err:
-                print("ERROR: %s" % err)
-                print("Try rerunning with --overwrite.")
-                exit(1)
-            except PermissionError:
-                print(
-                    "Error with file permissions, try manually removing your typings"
-                    " directory first."
+                logger.error("%s\nTry rerunning with --overwrite", err)
+                sys.exit(1)
+            except PermissionError as err:
+                logger.error(
+                    "Error with file permissions: %s\nTry manually removing your "
+                    "typings directory first.",
+                    err,
                 )
-                exit(2)
+                sys.exit(2)
             except nxlib.NxNotInstalledError as err:
-                print("ERROR: %s" % err)
-                exit(3)
+                logger.error("%s", err)
+                sys.exit(3)
         case _:
             parser.print_help()
 

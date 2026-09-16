@@ -33,7 +33,8 @@ def add_runmode_group(parser: argparse.ArgumentParser) -> None:
         "--run-mode",
         choices=get_args(RunMode),
         default="native",
-        help="NX run mode. 'native' (default) for local filesystem and 'managed' for Teamcenter.",
+        help="NX run mode. 'native' (default) for local filesystem and 'managed' "
+        "for Teamcenter.",
     )
     runmode_group.add_argument(
         "--native",

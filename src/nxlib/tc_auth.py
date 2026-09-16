@@ -24,17 +24,16 @@ from pathlib import Path
 class TcAuthMethod(Enum):
     """Method for Teamcenter authentication."""
 
-    # Choose automatically based on environment variables
     AUTO = "auto"
+    """Choose automatically based on environment variables"""
 
-    # Single sign-on, typically used for developers and users
-    # who have NX installed and have a Teamcenter account
     SSO = "sso"
+    """Single sign-on, typically used for developers and users
+    who have NX installed and have a Teamcenter account"""
 
-    # Password or password file, typically used by CI runners
-    # or virtual machines that aren't tied to a specific persons'
-    # Teamcenter account
     PASSWORD = "password"
+    """Password or password file, typically used by CI runners or virtual machines 
+    that aren't tied to a specific user's Teamcenter account"""
 
     def resolve(self) -> TcAuthMethod:
         """Resolve an automatic selection for TC auth method based on the
@@ -76,7 +75,8 @@ def tc_credential_args() -> list[str]:
     """
     user = os.environ.get("TC_USERNAME")
     if not user:
-        raise KeyError("Could not validate TC login credentials: TC_USERNAME not set!")
+        msg = "Could not validate TC login credentials: TC_USERNAME not set!"
+        raise KeyError(msg)
     password, password_file = (
         os.environ.get("TC_PASSWORD"),
         os.environ.get("TC_PASSWORD_FILE"),
@@ -91,6 +91,8 @@ def tc_credential_args() -> list[str]:
             f"-u={user}",
             f"-p={password}",
         ]
-    raise KeyError(
-        "Could not validate TC login credentials: one of TC_PASSWORD or TC_PASSWORD_FILE must be set!"
+    msg = (
+        "Could not validate TC login credentials: one of TC_PASSWORD or "
+        "TC_PASSWORD_FILE must be set!"
     )
+    raise KeyError(msg)

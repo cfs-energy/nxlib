@@ -19,26 +19,28 @@ in the file."""
 
 import argparse
 import json
+import logging
 import os
 from pathlib import Path
 
-from nxlib import nxprint
 from nxlib.geometry import Point3d
 from nxlib.io import NxEncoder
 from nxlib.nxopen.part import part_context
+
+logger = logging.getLogger("nx_get_points.py")
 
 
 def get_points(part_file: str | os.PathLike, output_file: str | os.PathLike):
     # Set up the dictionary that we'll serialize
     data = {"points": []}
-    nxprint(f"Opening part file from {part_file}...")
+    logger.info("Opening part file from %s...", part_file)
 
     # part_context is a context manager for opening an NX part,
     # similar to Python's built-in open function for opening a
     # regular file.
     with part_context(part_file) as work_part:
-        nxprint(f"{work_part.Name} was opened successfully!")
-        nxprint("Iterating through points in file.")
+        logger.info("%s was opened successfully!", work_part.Name)
+        logger.info("Iterating through points in file.")
 
         # We iterate through the points that were included in the part file
         for point in work_part.Points:  # type: ignore
@@ -48,7 +50,7 @@ def get_points(part_file: str | os.PathLike, output_file: str | os.PathLike):
             data["points"].append(pt)
 
     # Now we open the output file to write our data
-    nxprint("Serializing point data...")
+    logger.info("Serializing point data...")
     with open(output_file, "w") as output:
         # We can simply use json.dump to our open file handle here.
         # Note that we need to use cls=NxEncoder to ensure that everything
@@ -56,7 +58,7 @@ def get_points(part_file: str | os.PathLike, output_file: str | os.PathLike):
         # serialized correctly, and can be deserialized with an nxlib.io.NxDecoder
         json.dump(data, output, cls=NxEncoder, indent=2)
 
-    nxprint(f"{len(data['points'])} points written to {output_file}.")
+    logger.info("%d points written to %s.", len(data["points"]), output_file)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Tests for running NX journals."""
+
+import logging
 import os
 import subprocess
 import sys
@@ -146,6 +149,52 @@ def test_run_journal_fn_args(greeting, capfd):
     ), "Output should be as expected"
 
 
+@pytest.mark.skipif(not nxlib.status.nx_installed, reason="only run if NX is installed")
+@pytest.mark.parametrize(
+    "log_level, expect_debug, expect_info, expect_error",
+    [
+        (logging.DEBUG, True, True, True),
+        ("INFO", False, True, True),
+        (logging.ERROR, False, False, True),
+        (logging.CRITICAL, False, False, False),
+    ],
+)
+def test_run_journal_logging_levels(
+    caplog, log_level, expect_debug, expect_info, expect_error
+):
+    """Test that subprocess logs are captured by the parent logger at the correct levels
+
+    and that tracebacks are retained across the socket boundary.
+    """
+    journal_path = Path(__file__).parent / "integration" / "log.py"
+
+    # Run the journal with the specified log level
+    result = nxlib.run_journal(journal_path, log_level=log_level)
+
+    assert result == 0, "Journal should run successfully"
+
+    # Verify log record presence based on configured level
+    debug_logs = [r for r in caplog.records if r.levelno == logging.DEBUG]
+    info_logs = [r for r in caplog.records if r.levelno == logging.INFO]
+    error_logs = [r for r in caplog.records if r.levelno == logging.ERROR]
+
+    assert bool(debug_logs) == expect_debug, (
+        f"DEBUG level presence should be {expect_debug}"
+    )
+    assert bool(info_logs) == expect_info, (
+        f"INFO level presence should be {expect_info}"
+    )
+    assert bool(error_logs) == expect_error, (
+        f"ERROR level presence should be {expect_error}"
+    )
+
+    # Verify that multi-line exception tracebacks survived the socket transmission
+    if expect_error:
+        assert "ZeroDivisionError: division by zero" in caplog.text, (
+            "Exception traceback should be captured in the parent log stream"
+        )
+
+
 @pytest.mark.skipif(
     not (nxlib.status.nx_installed and nxlib.status.teamcenter_enabled),
     reason="only run if NX is installed and teamcenter is available",
@@ -196,7 +245,7 @@ def test_set_env_vars_site(monkeypatch, env_file):
     monkeypatch.setattr(
         "nxlib.utility.run.importlib.resources.path", lambda *_args: dotenv_path
     )
-    run._set_env_vars(run.TcAuthMethod.AUTO, False)
+    run._set_env_vars(run.TcAuthMethod.AUTO)
     assert os.environ["TEST_ENV_VAR"] == "platypus", (
         "Environment variables should be set"
     )
@@ -220,7 +269,7 @@ def test_set_env_vars_local(monkeypatch, env_file, auth_method):
     monkeypatch.setattr(
         "nxlib.utility.run.importlib.resources.is_resource", lambda *_args: False
     )
-    run._set_env_vars(auth_method, False)
+    run._set_env_vars(auth_method)
     assert os.environ["TEST_ENV_VAR"] == "platypus", (
         "Environment variables should be set"
     )
